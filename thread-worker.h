@@ -21,7 +21,8 @@
 
 typedef uint worker_t;
 
-typedef struct TCB {
+typedef struct TCB
+{
 	/* add important states in a thread control block */
 	// thread Id
 	// thread status
@@ -31,10 +32,11 @@ typedef struct TCB {
 	// And more ...
 
 	// YOUR CODE HERE
-} tcb; 
+} tcb;
 
 /* mutex struct definition */
-typedef struct worker_mutex_t {
+typedef struct worker_mutex_t
+{
 	/* add something here */
 
 	// YOUR CODE HERE
@@ -53,12 +55,10 @@ typedef struct worker_mutex_t {
 
 // YOUR CODE HERE
 
-
 /* Function Declarations: */
 
 /* create a new thread */
-int worker_create(worker_t * thread, pthread_attr_t * attr, void
-    *(*function)(void*), void * arg);
+int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg);
 
 /* give CPU pocession to other user level worker threads voluntarily */
 int worker_yield();
@@ -71,7 +71,7 @@ int worker_join(worker_t thread, void **value_ptr);
 
 /* initial the mutex lock */
 int worker_mutex_init(worker_mutex_t *mutex, const pthread_mutexattr_t
-    *mutexattr);
+																								 *mutexattr);
 
 /* aquire the mutex lock */
 int worker_mutex_lock(worker_mutex_t *mutex);
@@ -81,7 +81,6 @@ int worker_mutex_unlock(worker_mutex_t *mutex);
 
 /* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex);
-
 
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
