@@ -14,21 +14,34 @@
 
 /* include lib header files that you need here: */
 #include <unistd.h>
+#include <ucontext.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 typedef uint worker_t;
+typedef enum {
+	READY,
+	RUNNING,
+	WAITING,
+	DELAYED,
+	BLOCKED
+} thread_status;
 
 typedef struct TCB
 {
 	/* add important states in a thread control block */
 	// thread Id
+	int thread_id;
 	// thread status
+	thread_status stat;
 	// thread context
+	ucontext_t context;
 	// thread stack
-	// thread priority
+	char * stack;
+	// thread pritority
+	int priority;
 	// And more ...
 
 	// YOUR CODE HERE
