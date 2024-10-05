@@ -5,6 +5,7 @@
 // iLab Server:
 
 #include "thread-worker.h"
+#include "semaphore.h"
 
 // Global counter for total context switches and
 // average turn around and response time
@@ -14,6 +15,7 @@ double avg_resp_time = 0;
 
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
+sem_t condition_semaphore;
 
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr,
@@ -59,18 +61,53 @@ int worker_yield()
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
 	// - de-allocate any dynamic memory created when starting this thread
+	
+	// signal that thread is done with execution -> worker_join()
+	sem_post(&condition_semaphore);
+	free(value_ptr);
+};
 
-	// YOUR CODE HERE
+static tcb _find_thread(worker_t thread)
+{
+	// implement function here
+	return;
 };
 
 /* Wait for thread termination */
+
+/*
+General algo:
+sem is located in each TCB
+on thread creation init sem
+find thread in worker join and wait on TCB sem if needed
+wait for sem to be signaled somehow, prob in yield/exit, after join?
+have to then destroy sem when thread is taken off queue somehow
+*/
 int worker_join(worker_t thread, void **value_ptr)
 {
-
 	// - wait for a specific thread to terminate
 	// - de-allocate any dynamic memory created by the joining thread
+	tcb ref_thread = _find_thread(thread);
+	// see if referenced thread is already done
+	// if so, no need to block calling thread
+	if (ref_thread.status == TERMINATED)
+	{
+		return 0;
+	}
 
-	// YOUR CODE HERE
+	// block calling thread until signaled
+	sem_wait(&condition_semaphore);
+
+	// signaling impl		
+
+	// store value if not null
+	if (value_ptr != NULL) {
+		*value_ptr = ref_thread->exit_value;
+	} 
+
+	// worker_exit() will not be called in here, makes more 
+	// sense to call it somewhere else
+
 	return 0;
 };
 
@@ -167,7 +204,3 @@ void print_app_stats(void)
 	fprintf(stderr, "Average turnaround time %lf \n", avg_turn_time);
 	fprintf(stderr, "Average response time  %lf \n", avg_resp_time);
 }
-
-// Feel free to add any other functions you need
-
-// YOUR CODE HERE
