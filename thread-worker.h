@@ -11,6 +11,7 @@
 
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_WORKERS macro */
 #define USE_WORKERS 1
+#define STACK_SIZE SIGSTKSZ
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -21,19 +22,22 @@
 #include <stdlib.h>
 
 typedef uint worker_t;
+// enum for tracking thread status
 typedef enum {
 	READY,
 	RUNNING,
 	WAITING,
 	DELAYED,
-	BLOCKED
+	BLOCKED, 
+	TERMINATED
 } thread_status;
+
 
 typedef struct TCB
 {
 	/* add important states in a thread control block */
 	// thread Id
-	int thread_id;
+	worker_t thread_id;
 	// thread status
 	thread_status stat;
 	// thread context

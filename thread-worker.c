@@ -14,15 +14,30 @@ double avg_resp_time = 0;
 
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
+worker_t current_thread_id = 0;
 
 /* create a new thread */
-int worker_create(worker_t *thread, pthread_attr_t *attr,
-									void *(*function)(void *), void *arg)
+int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg)
 {
 
 	// - create Thread Control Block (TCB)
-	// - create and initialize the context of this worker thread
+	tcb * worker_tcb = malloc(sizeof(tcb));
+	worker_tcb->thread_id = current_thread_id++;
 	// - allocate space of stack for this thread to run
+	worker_tcb->stack = malloc(STACK_SIZE);
+	// error check
+	if (stack == NULL) {
+		perror("Failed to allocate stack");
+		exit(1);
+ 	}
+	// - create and initialize the context of this worker thread
+	ucontext_t cctx;
+	cctx.uc_link = NULL;
+	cctx.uc_stack.ss_sp = stack;
+	cctx.uc_stack.ss_size = STACK_SIZE;
+	cctx.uc_stack.ss_flags = 0;
+	// where to initialize the context to start?
+	makecontext(&cctx, function, 0);
 	// after everything is set, push this thread into run queue and
 	// - make it ready for the execution.
 
