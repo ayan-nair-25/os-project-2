@@ -53,3 +53,5 @@ dkms.conf
 
 # Personal folder containing scratch files
 misc/
+
+.vscode/
