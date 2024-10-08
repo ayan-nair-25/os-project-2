@@ -253,11 +253,28 @@ int worker_yield()
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
 	// - de-allocate any dynamic memory created when starting this thread
+	
+	// signal that thread is done with execution -> worker_join()
+	sem_post(&condition_semaphore);
+	free(value_ptr);
+};
 
-	// YOUR CODE HERE
+static tcb _find_thread(worker_t thread)
+{
+	// implement function here
+	return;
 };
 
 /* Wait for thread termination */
+
+/*
+General algo:
+sem is located in each TCB
+on thread creation init sem
+find thread in worker join and wait on TCB sem if needed
+wait for sem to be signaled somehow, prob in yield/exit, after join?
+have to then destroy sem when thread is taken off queue somehow
+*/
 int worker_join(worker_t thread, void **value_ptr)
 {
 	// // - wait for a specific thread to terminate
@@ -420,7 +437,3 @@ void print_app_stats(void)
 	fprintf(stderr, "Average turnaround time %lf \n", avg_turn_time);
 	fprintf(stderr, "Average response time  %lf \n", avg_resp_time);
 }
-
-// Feel free to add any other functions you need
-
-// YOUR CODE HERE
