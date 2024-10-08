@@ -30,8 +30,9 @@ typedef struct TCB
 	// thread stack
 	// thread priority
 	// And more ...
-
-	// YOUR CODE HERE
+	worker_t id;
+	int status;
+	uint elapsed_time;
 } tcb;
 
 /* mutex struct definition */
@@ -55,7 +56,73 @@ typedef struct worker_mutex_t
 
 // YOUR CODE HERE
 
+enum Status
+{
+	READY,
+	RUNNING,
+	BLOCKED,
+	TERMINATED,
+};
+
+/* LL queue for 'blocked' state */
+
+typedef struct 
+{
+	tcb *data;
+	struct Node *next, *prev;
+} Node;
+
+Node *create_node(tcb *data, Node *prev);
+
+typedef struct 
+{
+	Node *front, *rear;
+	uint length;
+} BlockedQueue;
+
+void blocked_queue_init();
+
+int blocked_queue_add(tcb *thread);
+
+tcb *blocked_queue_remove();
+
+void free_blocked_queue();
+
+/* Min-PQ for SJF */
+
+#define PQ_START_LEN 10
+
+typedef struct {
+	tcb **threads;
+	int length;
+	int capacity; 
+} PriorityQueue;
+
+void swap(tcb **a, tcb **b);
+
+void heapify_up(int index);
+
+void heapify_down(int index);
+
+void pq_init();
+
+void pq_expand();
+
+void pq_shrink();
+
+void pq_add(tcb *thread);
+
+tcb *pq_remove();
+
+tcb *pq_peek();
+
+void free_pq();
+
 /* Function Declarations: */
+
+/* find tcb in runqueue */
+// will need to handle finding a TCB in a multi-level queue
+static tcb *get_tcb(worker_t thread);
 
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg);

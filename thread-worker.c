@@ -15,6 +15,200 @@ double avg_resp_time = 0;
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
 
+static BlockedQueue *blocked_queue;
+static PriorityQueue *heap;
+
+/* min priority queue */
+
+void pq_swap(tcb **a, tcb **b)
+{
+	tcb *temp = *a;
+	*a = *b;
+	*b = temp;
+}
+
+void heapify_up(int index)
+{
+	int parent = (index - 1) / 2;
+	if (index > 0 &&
+			heap->threads[index]->elapsed_time <= heap->threads[parent]->elapsed_time)
+	{
+		pq_swap(&heap->threads[index], &heap->threads[parent]);
+		heapify_up(parent);
+	}
+}
+
+void heapify_down(int index)
+{
+	int left_child = 2 * index + 1;
+	int right_child = 2 * index + 2;
+	int smallest = index;
+	if (left_child < heap->length &&
+			heap->threads[left_child]->elapsed_time < heap->threads[smallest]->elapsed_time)
+	{
+		smallest = left_child;
+	}
+	if (right_child < heap->length &&
+			heap->threads[right_child]->elapsed_time < heap->threads[smallest]->elapsed_time)
+	{
+		smallest = right_child;
+	}
+	if (smallest != index)
+	{
+		swap(&heap->threads[index], &heap->threads[smallest]);
+		heapify_down(smallest);
+	}
+}
+
+void pq_init() 
+{
+	heap = malloc(sizeof(PriorityQueue));
+	heap->length = 0;
+	heap->capacity = PQ_START_LEN;
+	heap->threads = malloc(PQ_START_LEN * sizeof(tcb *));
+}
+
+void pq_expand()
+{
+	heap->capacity *= 2;
+	heap->threads = realloc(heap->threads, heap->capacity * sizeof(tcb *));
+}
+
+void pq_shrink()
+{
+	heap->capacity /= 2;
+	heap->threads = realloc(heap->threads, heap->capacity * sizeof(tcb *));
+}
+
+void pq_add(tcb *thread)
+{
+	if (thread == NULL)
+	{
+		return;
+	}
+	if (heap->length == heap->capacity)
+	{
+		pq_expand();
+	}
+	heap->threads[heap->length++] = thread;
+	heapify_up(heap->length - 1);
+}
+
+tcb *pq_remove()
+{
+	if (heap->length == 0)
+	{
+		return NULL;
+	}
+	tcb *thread = heap->threads[0];
+	heap->threads[0] = heap->threads[--heap->length];
+	if (heap->length < heap->capacity / 2)
+	{
+		pq_shrink();
+	}
+	heapify_down(0);
+	return thread;
+}
+
+tcb *pq_peek()
+{
+	if (heap->length == 0)
+	{
+		return NULL;
+	}
+	return heap->threads[0];
+}
+
+void free_pq()
+{
+	free(heap->threads);
+	free(heap);
+	heap = NULL;
+}
+
+/* blocked queue */
+
+Node *create_node(tcb *data, Node *prev)
+{
+	Node *new_node = malloc(sizeof(Node));
+	new_node->data = data;
+	new_node->next = NULL;
+	new_node->prev = prev;
+	return new_node;
+}
+
+void blocked_queue_init()
+{
+	blocked_queue = malloc(sizeof(BlockedQueue));
+	blocked_queue->front = blocked_queue->rear = NULL;
+	blocked_queue->length = 0;
+}
+
+int blocked_queue_add(tcb *thread)
+{
+	if (thread == NULL || blocked_queue == NULL)
+	{
+		return -1;
+	}
+	// probably need to add a check if already in blocked queue
+	else if (blocked_queue->length == 0)
+	{
+		blocked_queue->front = create_node(thread, NULL);
+		blocked_queue->rear = blocked_queue->front;
+	}
+	else
+	{
+		Node *new_node = create_node(thread, blocked_queue->rear);
+		blocked_queue->rear->next = new_node;
+		blocked_queue->rear = new_node;
+	}
+
+	blocked_queue->length++;
+	return 0;
+}
+
+tcb *blocked_queue_remove()
+{
+	tcb *ret;
+	if (blocked_queue == NULL || blocked_queue->length == 0)
+	{
+		ret = NULL;
+	}
+	else if (blocked_queue->length == 1)
+	{
+		ret = blocked_queue->front->data;
+		blocked_queue->front = blocked_queue->rear = NULL;
+		blocked_queue->length--;
+	}
+	else
+	{
+		ret = blocked_queue->rear->data;
+		blocked_queue->rear = blocked_queue->rear->prev;
+		blocked_queue->rear->next = NULL;
+		blocked_queue->length--;
+	}
+	return ret;
+}
+
+void free_blocked_queue()
+{
+	if (blocked_queue == NULL || blocked_queue->length == 0)
+	{
+		return;
+	}
+	Node *ptr = blocked_queue->front;
+	while (ptr != NULL)
+	{
+		Node *temp_node = ptr->next;
+		free(ptr);
+		ptr = temp_node;
+	}
+	free(blocked_queue);
+	blocked_queue = NULL;
+}
+
+// ----------------------------- //
+
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr,
 									void *(*function)(void *), void *arg)
@@ -66,12 +260,71 @@ void worker_exit(void *value_ptr) {
 /* Wait for thread termination */
 int worker_join(worker_t thread, void **value_ptr)
 {
+	// // - wait for a specific thread to terminate
+	// // - de-allocate any dynamic memory created by the joining thread
+	// tcb *ref_thread = get_tcb(thread);
+	// if (ref_thread == NULL)
+	// {
+	// 	// thread is not found
+	// 	return -1;
+	// }
+	// if (ref_thread->status == TERMINATED)
+	// {
+	// 	// thread already terminated
+	// 	if (value_ptr != NULL)
+	// 	{
+	// 		;
+	// 		// set return value of thread
+	// 	}
+	// 	return 0;
+	// }
 
-	// - wait for a specific thread to terminate
-	// - de-allocate any dynamic memory created by the joining thread
+	// // else move thread to blocked queue
 
-	// YOUR CODE HERE
-	return 0;
+	// return 0;
+
+
+	/*
+	each TCB will have a list of threads waiting to join on it
+
+	GENERAL OUTLINE:
+	check if ref thread is null
+	if it is:
+		early return + possible error set
+
+	check if ref thread is terminated
+	if it is:
+		check if value ptr is null
+			if it is not:
+				value ptr = ref_thread->exit_value
+	else:
+		set calling thread to BLOCKED and move calling thread to blocked queue
+		add calling thread to list of threads wanting to join TCB
+		yield control (scheduler will switch context)
+
+
+	What does the scheduler do next?
+	Scheduler will select the next READY thread to run
+
+	When does unblocking happen?
+	During worker_exit() of the ref thread:
+		change state to terminated
+		iterate over waiting list of threads and set their status to ready
+		move them from the blocked queue to the ready queue
+		yield control
+
+
+	IMPORTANT: MULTIPLE BLOCKED QUEUES BASED ON EVENT CAUSING BLOCKING
+
+	Each resource has its own blocked queue. 
+	This blocked queue lists threads waiting for that resource to 
+	either become available or to terminate, etc.
+
+
+	When the resource DOES terminate/become available, 
+	it iterates through its separate blocked queue and 
+	adds it to a global run queue.
+	*/
 };
 
 /* initialize the mutex lock */
