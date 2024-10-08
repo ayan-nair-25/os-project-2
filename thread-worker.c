@@ -252,11 +252,7 @@ int worker_yield()
 
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
-	// - de-allocate any dynamic memory created when starting this thread
 	
-	// signal that thread is done with execution -> worker_join()
-	sem_post(&condition_semaphore);
-	free(value_ptr);
 };
 
 static tcb _find_thread(worker_t thread)
