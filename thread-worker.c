@@ -249,19 +249,26 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	// - allocate space of stack for this thread to run
 	worker_tcb->stack = malloc(STACK_SIZE);
 	// error check
-	if (stack == NULL) {
+	if (worker_tcb->stack == NULL) {
 		perror("Failed to allocate stack");
 		exit(1);
  	}
 	// - create and initialize the context of this worker thread
 	ucontext_t cctx;
 	cctx.uc_link = NULL;
-	cctx.uc_stack.ss_sp = stack;
+	cctx.uc_stack.ss_sp = worker_tcb->stack;
 	cctx.uc_stack.ss_size = STACK_SIZE;
 	cctx.uc_stack.ss_flags = 0;
 	// where to initialize the context to start?
 	makecontext(&cctx, function, 0);
+	worker_tcb->context = cctx;
 	// after everything is set, push this thread into run queue and
+	// initialize pq if not initialized alr
+	worker_tcb->queue = blocked_queue_init();
+	if (heap == NULL) {
+		pq_init();
+	}
+	pq_add(worker_tcb);
 	// - make it ready for the execution.
 
 	// YOUR CODE HERE

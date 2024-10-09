@@ -35,6 +35,8 @@ typedef enum
 
 /* LL queue for 'blocked' state */
 
+// this might cause an error or a duplicate definition issue but idk for sure
+typedef struct TCB tcb;
 typedef struct
 {
 	tcb *data;
@@ -89,6 +91,7 @@ tcb *pq_remove();
 tcb *pq_peek();
 
 void free_pq();
+
 typedef struct TCB
 {
 	/* add important states in a thread control block */
@@ -102,6 +105,8 @@ typedef struct TCB
 	char *stack;
 	// thread pritority
 	int priority;
+	// add the blocked queue
+	BlockedQueue * queue;
 	// And more ...
 	uint elapsed_time;
 } tcb;
