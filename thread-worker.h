@@ -11,7 +11,6 @@
 
 /* To use Linux pthread Library in Benchmark, you have to comment the USE_WORKERS macro */
 #define USE_WORKERS 1
-#define STACK_SIZE SIGSTKSZ
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -20,7 +19,9 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 
+#define STACK_SIZE SIGSTKSZ
 typedef uint worker_t;
 // enum for tracking thread status
 typedef enum
@@ -131,14 +132,6 @@ typedef struct worker_mutex_t
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
 // YOUR CODE HERE
-
-enum Status
-{
-	READY,
-	RUNNING,
-	BLOCKED,
-	TERMINATED,
-};
 
 enum Mutex_Status
 {

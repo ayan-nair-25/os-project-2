@@ -55,7 +55,7 @@ void heapify_down(int index)
 	}
 	if (smallest != index)
 	{
-		swap(&heap->threads[index], &heap->threads[smallest]);
+		pq_swap(&heap->threads[index], &heap->threads[smallest]);
 		heapify_down(smallest);
 	}
 }
