@@ -16,7 +16,6 @@ double avg_resp_time = 0;
 // YOUR CODE HERE
 worker_t current_thread_id = 0;
 
-static BlockedQueue *blocked_queue;
 static PriorityQueue *heap;
 
 /* min priority queue */
@@ -138,14 +137,20 @@ Node *create_node(tcb *data, Node *prev)
 	return new_node;
 }
 
-void blocked_queue_init()
+BlockedQueue* blocked_queue_init()
 {
-	blocked_queue = malloc(sizeof(BlockedQueue));
+	BlockedQueue* blocked_queue = malloc(sizeof(BlockedQueue));
+	if (blocked_queue == NULL)
+	{
+		// handle error
+		return NULL;
+	}
 	blocked_queue->front = blocked_queue->rear = NULL;
 	blocked_queue->length = 0;
+	return blocked_queue;
 }
 
-int blocked_queue_add(tcb *thread)
+int blocked_queue_add(BlockedQueue *blocked_queue,tcb *thread)
 {
 	if (thread == NULL || blocked_queue == NULL)
 	{
@@ -168,7 +173,7 @@ int blocked_queue_add(tcb *thread)
 	return 0;
 }
 
-tcb *blocked_queue_remove()
+tcb *blocked_queue_remove(BlockedQueue *blocked_queue)
 {
 	tcb *ret;
 	if (blocked_queue == NULL || blocked_queue->length == 0)
@@ -191,7 +196,31 @@ tcb *blocked_queue_remove()
 	return ret;
 }
 
-void free_blocked_queue()
+// check if this works
+int unblock_threads(BlockedQueue *blocked_queue)
+{
+	if (blocked_queue == NULL || heap == NULL)
+	{
+		// handle error
+		return -1;
+	}
+
+	Node *ptr = blocked_queue->front;
+	// add to runqueue and free blocked queue nodes
+	while (ptr)
+	{
+		Node* temp = ptr->next;
+		pq_add(ptr->data);
+		free(ptr);
+		ptr = temp;
+	}
+
+	free(blocked_queue);
+	blocked_queue = NULL;
+	return 0;
+}
+
+void free_blocked_queue(BlockedQueue *blocked_queue)
 {
 	if (blocked_queue == NULL || blocked_queue->length == 0)
 	{
@@ -356,12 +385,25 @@ int worker_join(worker_t thread, void **value_ptr)
 };
 
 /* initialize the mutex lock */
+// can assume mutexattr is NULL
 int worker_mutex_init(worker_mutex_t *mutex,
 											const pthread_mutexattr_t *mutexattr)
 {
 	//- initialize data structures for this mutex
 
-	// YOUR CODE HERE
+	mutex = (worker_mutex_t *)malloc(sizeof(worker_mutex_t));
+	if (mutex == NULL){
+		// handle error
+		return -1;
+	}
+	mutex->status = UNLOCKED;
+	mutex->owner_thread = NULL;
+	mutex->queue = blocked_queue_init();
+	if (mutex->queue == NULL)
+	{
+		// handle error
+		return -1;
+	}
 	return 0;
 };
 
@@ -374,7 +416,23 @@ int worker_mutex_lock(worker_mutex_t *mutex)
 	// - if acquiring mutex fails, push current thread into block list and
 	// context switch to the scheduler thread
 
-	// YOUR CODE HERE
+	// thread is unowned and calling thread can enter crit sect
+	// pretend this is current thread
+	tcb *curr_thread = NULL;
+	if (mutex->status == UNLOCKED)
+	{
+		mutex->status = LOCKED;
+		mutex->owner_thread = curr_thread;
+		return 0;
+	}
+	
+	// add current thread to mutex waiting list
+	if (blocked_queue_add(mutex->queue, curr_thread) == -1)
+	{
+		// handle error
+		return -1;
+	}
+	worker_yield();
 	return 0;
 };
 
@@ -385,7 +443,10 @@ int worker_mutex_unlock(worker_mutex_t *mutex)
 	// - put threads in block list to run queue
 	// so that they could compete for mutex later.
 
-	// YOUR CODE HERE
+	tcb *current_thread = NULL;
+	mutex->owner_thread = NULL;
+	mutex->status = UNLOCKED;
+	unblock_threads(mutex->queue);
 	return 0;
 };
 
@@ -393,7 +454,10 @@ int worker_mutex_unlock(worker_mutex_t *mutex)
 int worker_mutex_destroy(worker_mutex_t *mutex)
 {
 	// - de-allocate dynamic memory created in worker_mutex_init
-
+	free_blocked_queue(mutex->queue);
+	mutex->owner_thread = NULL;
+	free(mutex);
+	mutex = NULL;
 	return 0;
 };
 

@@ -23,16 +23,72 @@
 
 typedef uint worker_t;
 // enum for tracking thread status
-typedef enum {
+typedef enum
+{
 	READY,
 	RUNNING,
 	WAITING,
 	DELAYED,
-	BLOCKED, 
+	BLOCKED,
 	TERMINATED
 } thread_status;
 
+/* LL queue for 'blocked' state */
 
+typedef struct
+{
+	tcb *data;
+	struct Node *next, *prev;
+} Node;
+
+Node *create_node(tcb *data, Node *prev);
+
+typedef struct
+{
+	Node *front, *rear;
+	uint length;
+} BlockedQueue;
+
+BlockedQueue *blocked_queue_init();
+
+int blocked_queue_add(BlockedQueue *blocked_queue, tcb *thread);
+
+tcb *blocked_queue_remove(BlockedQueue *blocked_queue);
+
+int unblock_threads(BlockedQueue *blocked_queue);
+
+void free_blocked_queue(BlockedQueue *blocked_queue);
+
+/* Min-PQ for SJF */
+
+#define PQ_START_LEN 10
+
+typedef struct
+{
+	tcb **threads;
+	int length;
+	int capacity;
+} PriorityQueue;
+
+void swap(tcb **a, tcb **b);
+
+void heapify_up(int index);
+
+void heapify_down(int index);
+
+void pq_init();
+
+void pq_expand();
+
+void pq_shrink();
+
+void pq_add(tcb *thread);
+
+tcb *pq_remove();
+
+tcb *pq_peek();
+
+void free_pq();
 typedef struct TCB
 {
 	/* add important states in a thread control block */
@@ -43,21 +99,19 @@ typedef struct TCB
 	// thread context
 	ucontext_t context;
 	// thread stack
-	char * stack;
+	char *stack;
 	// thread pritority
 	int priority;
 	// And more ...
-	worker_t id;
-	int status;
 	uint elapsed_time;
 } tcb;
 
 /* mutex struct definition */
 typedef struct worker_mutex_t
 {
-	/* add something here */
-
-	// YOUR CODE HERE
+	thread_status status;
+	tcb *owner_thread;
+	BlockedQueue *queue;
 } worker_mutex_t;
 
 /* Priority definitions */
@@ -81,59 +135,11 @@ enum Status
 	TERMINATED,
 };
 
-/* LL queue for 'blocked' state */
-
-typedef struct 
+enum Mutex_Status
 {
-	tcb *data;
-	struct Node *next, *prev;
-} Node;
-
-Node *create_node(tcb *data, Node *prev);
-
-typedef struct 
-{
-	Node *front, *rear;
-	uint length;
-} BlockedQueue;
-
-void blocked_queue_init();
-
-int blocked_queue_add(tcb *thread);
-
-tcb *blocked_queue_remove();
-
-void free_blocked_queue();
-
-/* Min-PQ for SJF */
-
-#define PQ_START_LEN 10
-
-typedef struct {
-	tcb **threads;
-	int length;
-	int capacity; 
-} PriorityQueue;
-
-void swap(tcb **a, tcb **b);
-
-void heapify_up(int index);
-
-void heapify_down(int index);
-
-void pq_init();
-
-void pq_expand();
-
-void pq_shrink();
-
-void pq_add(tcb *thread);
-
-tcb *pq_remove();
-
-tcb *pq_peek();
-
-void free_pq();
+	LOCKED,
+	UNLOCKED,
+};
 
 /* Function Declarations: */
 
