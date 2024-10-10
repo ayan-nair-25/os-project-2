@@ -17,6 +17,7 @@ double avg_resp_time = 0;
 worker_t current_thread_id = 0;
 
 static PriorityQueue *heap;
+static MLFQ *mlfq;
 
 /* min priority queue */
 
@@ -60,7 +61,7 @@ void heapify_down(int index)
 	}
 }
 
-void pq_init() 
+void pq_init()
 {
 	heap = malloc(sizeof(PriorityQueue));
 	heap->length = 0;
@@ -137,104 +138,104 @@ Node *create_node(tcb *data, Node *prev)
 	return new_node;
 }
 
-BlockedQueue* blocked_queue_init()
+Queue *queue_init()
 {
-	BlockedQueue* blocked_queue = malloc(sizeof(BlockedQueue));
-	if (blocked_queue == NULL)
+	Queue *queue = malloc(sizeof(Queue));
+	if (queue == NULL)
 	{
 		// handle error
 		return NULL;
 	}
-	blocked_queue->front = blocked_queue->rear = NULL;
-	blocked_queue->length = 0;
-	return blocked_queue;
+	queue->front = queue->rear = NULL;
+	queue->length = 0;
+	return queue;
 }
 
-int blocked_queue_add(BlockedQueue *blocked_queue,tcb *thread)
+int queue_add(Queue *queue, tcb *thread)
 {
-	if (thread == NULL || blocked_queue == NULL)
+	if (thread == NULL || queue == NULL)
 	{
 		return -1;
 	}
 	// probably need to add a check if already in blocked queue
-	else if (blocked_queue->length == 0)
+	else if (queue->length == 0)
 	{
-		blocked_queue->front = create_node(thread, NULL);
-		blocked_queue->rear = blocked_queue->front;
+		queue->front = create_node(thread, NULL);
+		queue->rear = queue->front;
 	}
 	else
 	{
-		Node *new_node = create_node(thread, blocked_queue->rear);
-		blocked_queue->rear->next = new_node;
-		blocked_queue->rear = new_node;
+		Node *new_node = create_node(thread, queue->rear);
+		queue->rear->next = new_node;
+		queue->rear = new_node;
 	}
 
-	blocked_queue->length++;
+	queue->length++;
 	return 0;
 }
 
-tcb *blocked_queue_remove(BlockedQueue *blocked_queue)
+tcb *queue_remove(Queue *queue)
 {
 	tcb *ret;
-	if (blocked_queue == NULL || blocked_queue->length == 0)
+	if (queue == NULL || queue->length == 0)
 	{
 		ret = NULL;
 	}
-	else if (blocked_queue->length == 1)
+	else if (queue->length == 1)
 	{
-		ret = blocked_queue->front->data;
-		blocked_queue->front = blocked_queue->rear = NULL;
-		blocked_queue->length--;
+		ret = queue->front->data;
+		queue->front = queue->rear = NULL;
+		queue->length--;
 	}
 	else
 	{
-		ret = blocked_queue->rear->data;
-		blocked_queue->rear = blocked_queue->rear->prev;
-		blocked_queue->rear->next = NULL;
-		blocked_queue->length--;
+		ret = queue->rear->data;
+		queue->rear = queue->rear->prev;
+		queue->rear->next = NULL;
+		queue->length--;
 	}
 	return ret;
 }
 
 // check if this works
-int unblock_threads(BlockedQueue *blocked_queue)
+int unblock_threads(Queue *queue)
 {
-	if (blocked_queue == NULL || heap == NULL)
+	if (queue == NULL || heap == NULL)
 	{
 		// handle error
 		return -1;
 	}
 
-	Node *ptr = blocked_queue->front;
+	Node *ptr = queue->front;
 	// add to runqueue and free blocked queue nodes
 	while (ptr)
 	{
-		Node* temp = ptr->next;
+		Node *temp = ptr->next;
 		pq_add(ptr->data);
 		free(ptr);
 		ptr = temp;
 	}
 
-	free(blocked_queue);
-	blocked_queue = NULL;
+	free(queue);
+	queue = NULL;
 	return 0;
 }
 
-void free_blocked_queue(BlockedQueue *blocked_queue)
+void free_queue(Queue *queue)
 {
-	if (blocked_queue == NULL || blocked_queue->length == 0)
+	if (queue == NULL || queue->length == 0)
 	{
 		return;
 	}
-	Node *ptr = blocked_queue->front;
+	Node *ptr = queue->front;
 	while (ptr != NULL)
 	{
 		Node *temp_node = ptr->next;
 		free(ptr);
 		ptr = temp_node;
 	}
-	free(blocked_queue);
-	blocked_queue = NULL;
+	free(queue);
+	queue = NULL;
 }
 
 // ----------------------------- //
@@ -244,15 +245,16 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 {
 
 	// - create Thread Control Block (TCB)
-	tcb * worker_tcb = malloc(sizeof(tcb));
+	tcb *worker_tcb = malloc(sizeof(tcb));
 	worker_tcb->thread_id = current_thread_id++;
 	// - allocate space of stack for this thread to run
 	worker_tcb->stack = malloc(STACK_SIZE);
 	// error check
-	if (worker_tcb->stack == NULL) {
+	if (worker_tcb->stack == NULL)
+	{
 		perror("Failed to allocate stack");
 		exit(1);
- 	}
+	}
 	// - create and initialize the context of this worker thread
 	ucontext_t cctx;
 	cctx.uc_link = NULL;
@@ -264,8 +266,9 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	worker_tcb->context = cctx;
 	// after everything is set, push this thread into run queue and
 	// initialize pq if not initialized alr
-	worker_tcb->queue = blocked_queue_init();
-	if (heap == NULL) {
+	worker_tcb->queue = queue_init();
+	if (heap == NULL)
+	{
 		pq_init();
 	}
 	pq_add(worker_tcb);
@@ -303,7 +306,7 @@ int worker_yield()
 
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
-	
+
 };
 
 static tcb _find_thread(worker_t thread)
@@ -322,8 +325,7 @@ find thread in worker join and wait on TCB sem if needed
 wait for sem to be signaled somehow, prob in yield/exit, after join?
 have to then destroy sem when thread is taken off queue somehow
 */
-int worker_join(worker_t thread, void **value_ptr)
-{
+int worker_join(worker_t thread, void **value_ptr) {
 	// // - wait for a specific thread to terminate
 	// // - de-allocate any dynamic memory created by the joining thread
 	// tcb *ref_thread = get_tcb(thread);
@@ -346,7 +348,6 @@ int worker_join(worker_t thread, void **value_ptr)
 	// // else move thread to blocked queue
 
 	// return 0;
-
 
 	/*
 	each TCB will have a list of threads waiting to join on it
@@ -380,13 +381,13 @@ int worker_join(worker_t thread, void **value_ptr)
 
 	IMPORTANT: MULTIPLE BLOCKED QUEUES BASED ON EVENT CAUSING BLOCKING
 
-	Each resource has its own blocked queue. 
-	This blocked queue lists threads waiting for that resource to 
+	Each resource has its own blocked queue.
+	This blocked queue lists threads waiting for that resource to
 	either become available or to terminate, etc.
 
 
-	When the resource DOES terminate/become available, 
-	it iterates through its separate blocked queue and 
+	When the resource DOES terminate/become available,
+	it iterates through its separate blocked queue and
 	adds it to a global run queue.
 	*/
 };
@@ -399,13 +400,14 @@ int worker_mutex_init(worker_mutex_t *mutex,
 	//- initialize data structures for this mutex
 
 	mutex = (worker_mutex_t *)malloc(sizeof(worker_mutex_t));
-	if (mutex == NULL){
+	if (mutex == NULL)
+	{
 		// handle error
 		return -1;
 	}
 	mutex->status = UNLOCKED;
 	mutex->owner_thread = NULL;
-	mutex->queue = blocked_queue_init();
+	mutex->queue = queue_init();
 	if (mutex->queue == NULL)
 	{
 		// handle error
@@ -432,9 +434,9 @@ int worker_mutex_lock(worker_mutex_t *mutex)
 		mutex->owner_thread = curr_thread;
 		return 0;
 	}
-	
+
 	// add current thread to mutex waiting list
-	if (blocked_queue_add(mutex->queue, curr_thread) == -1)
+	if (queue_add(mutex->queue, curr_thread) == -1)
 	{
 		// handle error
 		return -1;
@@ -461,12 +463,81 @@ int worker_mutex_unlock(worker_mutex_t *mutex)
 int worker_mutex_destroy(worker_mutex_t *mutex)
 {
 	// - de-allocate dynamic memory created in worker_mutex_init
-	free_blocked_queue(mutex->queue);
+	free_queue(mutex->queue);
 	mutex->owner_thread = NULL;
 	free(mutex);
 	mutex = NULL;
 	return 0;
 };
+
+void MLFQ_init()
+{
+	mlfq = (MLFQ *)malloc(sizeof(MLFQ));
+
+	if (mlfq == NULL)
+	{
+		perror("MLFQ failed to initialize");
+		exit(1);
+	}
+
+	mlfq->high_prio_queue = queue_init();
+	mlfq->medium_prio_queue = queue_init();
+	mlfq->default_prio_queue = queue_init();
+	mlfq->low_prio_queue = queue_init();
+
+	if (
+			mlfq->high_prio_queue == NULL ||
+			mlfq->medium_prio_queue == NULL ||
+			mlfq->default_prio_queue == NULL ||
+			mlfq->low_prio_queue == NULL)
+	{
+		perror("MLFQ queues failed to initialize");
+		exit(1);
+	}
+}
+
+int MLFQ_add(int priority_level, tcb *thread)
+{
+	int res;
+	switch (priority_level)
+	{
+	case HIGH_PRIO:
+		res = queue_add(mlfq->high_prio_queue, thread);
+		break;
+	case MEDIUM_PRIO:
+		res = queue_add(mlfq->medium_prio_queue, thread);
+		break;
+	case DEFAULT_PRIO:
+		res = queue_add(mlfq->default_prio_queue, thread);
+		break;
+	case LOW_PRIO:
+		res = queue_add(mlfq->low_prio_queue, thread);
+		break;
+	}
+	return res;
+}
+
+tcb *MLFQ_remove(int priority_level)
+{
+	tcb *res;
+	switch (priority_level)
+	{
+	case HIGH_PRIO:
+		res = queue_remove(mlfq->high_prio_queue);
+		break;
+	case MEDIUM_PRIO:
+		res = queue_remove(mlfq->medium_prio_queue);
+		break;
+	case DEFAULT_PRIO:
+		res = queue_remove(mlfq->default_prio_queue);
+		break;
+	case LOW_PRIO:
+		res = queue_remove(mlfq->low_prio_queue);
+		break;
+	}
+}
+
+
 
 /* scheduler */
 static void schedule()

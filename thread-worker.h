@@ -50,17 +50,17 @@ typedef struct
 {
 	Node *front, *rear;
 	uint length;
-} BlockedQueue;
+} Queue;
 
-BlockedQueue *blocked_queue_init();
+Queue *queue_init();
 
-int blocked_queue_add(BlockedQueue *blocked_queue, tcb *thread);
+int queue_add(Queue *queue, tcb *thread);
 
-tcb *blocked_queue_remove(BlockedQueue *blocked_queue);
+tcb *queue_remove(Queue *queue);
 
-int unblock_threads(BlockedQueue *blocked_queue);
+int unblock_threads(Queue *queue);
 
-void free_blocked_queue(BlockedQueue *blocked_queue);
+void free_queue(Queue *queue);
 
 /* Min-PQ for SJF */
 
@@ -107,17 +107,22 @@ typedef struct TCB
 	// thread pritority
 	int priority;
 	// add the blocked queue
-	BlockedQueue * queue;
+	Queue * queue;
 	// And more ...
 	uint elapsed_time;
 } tcb;
 
+typedef enum
+{
+	LOCKED,
+	UNLOCKED,
+} mutex_status;
 /* mutex struct definition */
 typedef struct worker_mutex_t
 {
-	thread_status status;
+	mutex_status status;
 	tcb *owner_thread;
-	BlockedQueue *queue;
+	Queue *queue;
 } worker_mutex_t;
 
 /* Priority definitions */
@@ -133,11 +138,6 @@ typedef struct worker_mutex_t
 
 // YOUR CODE HERE
 
-enum Mutex_Status
-{
-	LOCKED,
-	UNLOCKED,
-};
 
 /* Function Declarations: */
 
@@ -172,6 +172,63 @@ int worker_mutex_destroy(worker_mutex_t *mutex);
 
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
+
+
+// MLFQ IMPL
+
+
+
+/*
+MLFQ Rules (8.6 OSTEP)
+
+• Rule 1: If Priority(A) > Priority(B), A runs (B doesn’t).
+
+• Rule 2: If Priority(A) = Priority(B), A & B run in round-robin fashion using 
+	the time slice (quantum length) of the given queue.
+
+• Rule 3: When a job enters the system, it is placed at the highest priority 
+	(the topmost queue).
+
+• Rule 4: Once a job uses up its time allotment at a given level (regardless 
+	of how many times it has given up the CPU), its priority is reduced 
+	(i.e., it moves down one queue).
+
+• Rule 5: After some time period S, move all the jobs in the system to the 
+	topmost queue.
+
+
+*/
+
+#define TIME_QUANTUM 10
+#define REFRESH_QUANTUM 100
+
+typedef struct {
+	Queue *high_prio_queue;
+	Queue *medium_prio_queue;
+	Queue *default_prio_queue;
+	Queue *low_prio_queue;
+} MLFQ;
+
+void MLFQ_init();
+
+int MLFQ_add(int priority_level, tcb *thread);
+
+tcb *MLFQ_remove(int priority_level);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #ifdef USE_WORKERS
 #define pthread_t worker_t
