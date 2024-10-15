@@ -28,21 +28,19 @@ void ring(int signum)
 
 void foo () 
 {
-	printf("executing foo...");
+	printf("executing foo...\n");
 	while(1)
 	{
-		printf("foo");
-		for (int i = 0; i < 100000000; ++i);
+		printf("foo ");
 	}
 }
 
 void bar ()
 {
-	printf("executing bar...");
+	printf("executing bar...\n");
 	while(1)
 	{
-		printf("bar");
-		for (int i = 0; i < 100000000; ++i);
+		printf("bar ");
 	}
 }
 
@@ -66,11 +64,11 @@ void setup_timer()
 
 int main () 
 {
-	printf("in main, getting contexts...");
+	printf("in main, getting contexts...\n");
 	getcontext(&foo_context);
 	getcontext(&bar_context);
 
-	printf("registering contexts...");
+	printf("registering contexts...\n");
 	foo_context.uc_link = &bar_context;
 	foo_context.uc_stack.ss_sp = malloc(STACK_SIZE);
 	foo_context.uc_stack.ss_size = STACK_SIZE;
@@ -81,14 +79,14 @@ int main ()
 	bar_context.uc_stack.ss_size = STACK_SIZE;
 	bar_context.uc_stack.ss_flags = 0;
 
-	printf("making contexts...");
+	printf("making contexts...\n");
 	makecontext(&foo_context, (void *)&foo, 0);
 	makecontext(&bar_context, (void *)&bar, 0);
 
-	printf("creating timer...");
+	printf("creating timer...\n");
 	setup_timer();
 
-	printf("setting foo context...");
+	printf("setting foo context...\n");
 	setcontext(&foo_context);
 
 	return 0;
