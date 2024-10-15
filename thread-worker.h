@@ -64,7 +64,8 @@ void free_blocked_queue(BlockedQueue *blocked_queue);
 
 /* Min-PQ for SJF */
 
-#define PQ_START_LEN 10
+#define PQ_START_LEN 100
+#define TIME_QUANTA 1
 
 typedef struct
 {

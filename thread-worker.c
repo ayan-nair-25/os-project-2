@@ -14,7 +14,8 @@ double avg_resp_time = 0;
 
 // INITAILIZE ALL YOUR OTHER VARIABLES HERE
 // YOUR CODE HERE
-worker_t current_thread_id = 0;
+worker_t current_thread_id = 1;
+tcb * scheduler_thread = NULL;
 
 static PriorityQueue *heap;
 
@@ -254,11 +255,30 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		exit(1);
  	}
 	// - create and initialize the context of this worker thread
-	ucontext_t cctx;
+	ucontext_t cctx, scheduler_cctx;
 	cctx.uc_link = NULL;
 	cctx.uc_stack.ss_sp = worker_tcb->stack;
 	cctx.uc_stack.ss_size = STACK_SIZE;
 	cctx.uc_stack.ss_flags = 0;
+	// only initialize the scheduler context on the first call
+	if (scheduler_thread == NULL) {
+		scheduler_thread = malloc(sizeof(scheduler_thread));
+		scheduler_thread->thread_id = 0;
+		// we swap the context manually and don't use the link
+		scheduler_cctx.uc_link = NULL;	
+		// init scheduler context stack
+		scheduler_thread->stack = malloc(STACK_SIZE);
+		if (scheduler_thread->stack == NULL) {
+			perror("Failed to allocate stack");
+			exit(1);
+		}
+		scheduler_cctx.uc_stack.ss_sp = scheduler_thread->stack;
+		scheduler_cctx.uc_stack.ss_size = STACK_SIZE;
+		scheduler_cctx.uc_stack.ss_flags = 0;
+		// now we create our context to start at the scheduler
+		makecontext(&scheduler_cctx, schedule, 0);
+		scheduler_thread->context = scheduler_cctx;
+	}
 	// where to initialize the context to start?
 	makecontext(&cctx, function, 0);
 	worker_tcb->context = cctx;
@@ -272,9 +292,8 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	// - make it ready for the execution.
 
 	// YOUR CODE HERE
-
 	return 0;
-};
+}
 
 #ifdef MLFQ
 /* This function gets called only for MLFQ scheduling set the worker priority. */
@@ -499,6 +518,23 @@ static void sched_psjf()
 	// (feel free to modify arguments and return types)
 
 	// YOUR CODE HERE
+
+	// general algorithm n shit
+	
+	// we are given a run queue with all of the tcb times on there
+	
+	// 1. pop off the minimum based on elapsed time
+	// 2. once we reach our time quanta, switch out
+	// 3. add back to run queue after incrementing by time quanta and heapify
+		
+	// first pop from the heap	
+	tcb * thread = pq_remove();
+	// do the context switching here so that we can move our context to the wanted function that we want to execute
+		
+	// if the function finishes executing before the time quanta, then exit and don't readd to runqueue'
+	// otherwise, increment the thread by the time quanta and then readd (code for that below)
+	thread->elapsed_time += TIME_QUANTA;
+	pq_add(thread);
 }
 
 /* Preemptive MLFQ scheduling algorithm */
