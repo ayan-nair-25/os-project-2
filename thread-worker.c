@@ -17,6 +17,8 @@ double avg_resp_time = 0;
 worker_t current_thread_id = 1;
 tcb * scheduler_thread = NULL;
 
+tcb * current_tcb_executing = NULL;
+
 static PriorityQueue *heap;
 
 /* min priority queue */
@@ -237,35 +239,36 @@ void free_blocked_queue(BlockedQueue *blocked_queue)
 	free(blocked_queue);
 	blocked_queue = NULL;
 }
-
 // ----------------------------- //
 
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg)
 {
-
 	// - create Thread Control Block (TCB)
 	tcb * worker_tcb = malloc(sizeof(tcb));
 	worker_tcb->thread_id = current_thread_id++;
+
 	// - allocate space of stack for this thread to run
 	worker_tcb->stack = malloc(STACK_SIZE);
+
 	// error check
 	if (worker_tcb->stack == NULL) {
 		perror("Failed to allocate stack");
 		exit(1);
  	}
+
 	// - create and initialize the context of this worker thread
 	ucontext_t cctx, scheduler_cctx;
-	cctx.uc_link = NULL;
-	cctx.uc_stack.ss_sp = worker_tcb->stack;
-	cctx.uc_stack.ss_size = STACK_SIZE;
-	cctx.uc_stack.ss_flags = 0;
+
 	// only initialize the scheduler context on the first call
 	if (scheduler_thread == NULL) {
 		scheduler_thread = malloc(sizeof(scheduler_thread));
 		scheduler_thread->thread_id = 0;
+
 		// we swap the context manually and don't use the link
+		getcontext(&scheduler_cctx);
 		scheduler_cctx.uc_link = NULL;	
+
 		// init scheduler context stack
 		scheduler_thread->stack = malloc(STACK_SIZE);
 		if (scheduler_thread->stack == NULL) {
@@ -275,13 +278,24 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		scheduler_cctx.uc_stack.ss_sp = scheduler_thread->stack;
 		scheduler_cctx.uc_stack.ss_size = STACK_SIZE;
 		scheduler_cctx.uc_stack.ss_flags = 0;
+
 		// now we create our context to start at the scheduler
-		makecontext(&scheduler_cctx, schedule, 0);
+		makecontext(&scheduler_cctx, (void *) &schedule, 0);
 		scheduler_thread->context = scheduler_cctx;
 	}
-	// where to initialize the context to start?
-	makecontext(&cctx, function, 0);
+
+	// where to initialize the context to start? also we need to pass in args
+	// getcontext to init everything
+	getcontext(&cctx);
+	// set up the link so that we automatically context switch back to the scheduler
+	cctx.uc_link = &scheduler_cctx;
+	cctx.uc_stack.ss_sp = worker_tcb->stack;
+	cctx.uc_stack.ss_size = STACK_SIZE;
+	cctx.uc_stack.ss_flags = 0;
+
+	makecontext(&cctx, (void *) &function, 0);
 	worker_tcb->context = cctx;
+
 	// after everything is set, push this thread into run queue and
 	// initialize pq if not initialized alr
 	worker_tcb->queue = blocked_queue_init();
@@ -289,7 +303,10 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		pq_init();
 	}
 	pq_add(worker_tcb);
+
 	// - make it ready for the execution.
+
+	// do we set the context to the scheduler context immediately in this function???
 
 	// YOUR CODE HERE
 	return 0;
@@ -512,6 +529,41 @@ static void schedule()
 }
 
 /* Pre-emptive Shortest Job First (POLICY_PSJF) scheduling algorithm */
+
+
+// what we have to do here:
+// we have the general algorithm but now the problem becomes how to signal timer interrupts
+// 1. create the timer
+// 2. upon timer interrupt:
+//	- switch back to the scheduler context
+// 3. if we finish the thread before the timer interrupt then swap back to the scheduler context
+//	- we then repeat the process
+
+
+void handle_sjf_interrupt(int signum)
+{
+	current_thread_executing->elapsed_time += TIME_QUANTA;
+	pq_add(current_thread_executing);
+	swapcontext(&(current_thread_executing->context), &(scheduler_thread->context));
+}
+
+void setup_timer_sjf()
+{
+	struct sigaction a;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = &handle_sjf_interrupt;
+	sigaction(SIGPROF, &sa, NULL);
+
+	struct itimerval timer;
+	timer.it_interval.tv_usec = 0;
+	timer.it_interval.tv_sec = TIME_QUANTA;
+
+	timer.it_value.tv_usec = 0;
+	timer.it_value.tv_sec = TIME_QUANTA;
+
+	setitimer(ITIMER_PROF, &timer, NULL);
+}
+
 static void sched_psjf()
 {
 	// - your own implementation of PSJF
@@ -526,15 +578,22 @@ static void sched_psjf()
 	// 1. pop off the minimum based on elapsed time
 	// 2. once we reach our time quanta, switch out
 	// 3. add back to run queue after incrementing by time quanta and heapify
-		
+
+	// do we do this only once?	
+	setup_timer_sjf(TIME_QUANTA);
 	// first pop from the heap	
 	tcb * thread = pq_remove();
+	current_thread_executing = thread;
+
 	// do the context switching here so that we can move our context to the wanted function that we want to execute
-		
-	// if the function finishes executing before the time quanta, then exit and don't readd to runqueue'
-	// otherwise, increment the thread by the time quanta and then readd (code for that below)
-	thread->elapsed_time += TIME_QUANTA;
-	pq_add(thread);
+	// we want to swap between the scheduler context and the function context
+	ucontext_t thread_context = thread->context;		
+	swapcontext(&(scheduler_thread->context), &thread_context);
+
+	// if the function finishes executing before the time quanta, then exit and don't readd to runqueue. also how do we know if the function finishes executing? we do this by setting the uc_link field
+
+	// otherwise, increment the thread by the time quanta and then readd (code for that below) this is wrong, how can we increment the thread elapsed time and re-queue it while in the signal handler?????
+	// take care of this in the signal handler
 }
 
 /* Preemptive MLFQ scheduling algorithm */
