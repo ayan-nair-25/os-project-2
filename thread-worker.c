@@ -19,6 +19,8 @@ tcb * scheduler_thread = NULL;
 
 tcb * current_tcb_executing = NULL;
 
+int timerInitialized = 0;
+
 static PriorityQueue *heap;
 
 /* min priority queue */
@@ -58,7 +60,7 @@ void heapify_down(int index)
 	}
 	if (smallest != index)
 	{
-		swap(&heap->threads[index], &heap->threads[smallest]);
+		pq_swap(&heap->threads[index], &heap->threads[smallest]);
 		heapify_down(smallest);
 	}
 }
@@ -241,6 +243,14 @@ void free_blocked_queue(BlockedQueue *blocked_queue)
 }
 // ----------------------------- //
 
+void handle_sjf_interrupt(int signum);
+
+void setup_timer_sjf();
+
+static void sched_psjf();
+static void sched_mlfq();
+static void schedule();
+
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg)
 {
@@ -260,8 +270,16 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	// - create and initialize the context of this worker thread
 	ucontext_t cctx, scheduler_cctx;
 
+//	if (timerInitialized == 0)
+//	{
+//		setup_timer_sjf();
+//		timerInitialized = 1;
+//	}
 	// only initialize the scheduler context on the first call
-	if (scheduler_thread == NULL) {
+	if (scheduler_thread == NULL) 
+	{
+		printf("initializing scheduler thread...\n");
+
 		scheduler_thread = malloc(sizeof(scheduler_thread));
 		scheduler_thread->thread_id = 0;
 
@@ -282,10 +300,12 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		// now we create our context to start at the scheduler
 		makecontext(&scheduler_cctx, (void *) &schedule, 0);
 		scheduler_thread->context = scheduler_cctx;
+		printf("successfully initialized scheduler thread! :) \n");
 	}
 
 	// where to initialize the context to start? also we need to pass in args
 	// getcontext to init everything
+	printf("intializing new thread...\n");
 	getcontext(&cctx);
 	// set up the link so that we automatically context switch back to the scheduler
 	cctx.uc_link = &scheduler_cctx;
@@ -293,7 +313,7 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	cctx.uc_stack.ss_size = STACK_SIZE;
 	cctx.uc_stack.ss_flags = 0;
 
-	makecontext(&cctx, (void *) &function, 0);
+	makecontext(&cctx, (void *) function, 0);
 	worker_tcb->context = cctx;
 
 	// after everything is set, push this thread into run queue and
@@ -303,10 +323,12 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		pq_init();
 	}
 	pq_add(worker_tcb);
+	printf("initialized new thread and added to pq :D\n");
 
 	// - make it ready for the execution.
 
 	// do we set the context to the scheduler context immediately in this function???
+	setcontext(&scheduler_cctx);
 
 	// YOUR CODE HERE
 	return 0;
@@ -333,6 +355,10 @@ int worker_yield()
 	// - switch from thread context to scheduler context
 
 	// YOUR CODE HERE
+
+	// block the timer
+	// send a signal to modify tcb
+	// do other work
 
 	return 0;
 };
@@ -504,6 +530,7 @@ int worker_mutex_destroy(worker_mutex_t *mutex)
 	return 0;
 };
 
+
 /* scheduler */
 static void schedule()
 {
@@ -521,10 +548,13 @@ static void schedule()
 	// YOUR CODE HERE
 
 // - schedule policy
+	printf("once again back in da scheduler \n");
 #ifndef MLFQ
 	// Choose PSJF
+	sched_psjf();
 #else
 	// Choose MLFQ
+	sched_mlfq();
 #endif
 }
 
@@ -542,21 +572,25 @@ static void schedule()
 
 void handle_sjf_interrupt(int signum)
 {
-	current_thread_executing->elapsed_time += TIME_QUANTA;
-	pq_add(current_thread_executing);
-	swapcontext(&(current_thread_executing->context), &(scheduler_thread->context));
+	// modify this to get the exact amount of time using the struct itimer
+	printf("in signal handler :D\n");
+	current_tcb_executing->elapsed_time += TIME_QUANTA;
+	pq_add(current_tcb_executing);
+	setcontext(&(scheduler_thread->context));
+	// swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 }
 
 void setup_timer_sjf()
 {
-	struct sigaction a;
+	printf("created timer! \n");
+	struct sigaction sa;
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = &handle_sjf_interrupt;
 	sigaction(SIGPROF, &sa, NULL);
 
 	struct itimerval timer;
 	timer.it_interval.tv_usec = 0;
-	timer.it_interval.tv_sec = TIME_QUANTA;
+	timer.it_interval.tv_sec = 0;
 
 	timer.it_value.tv_usec = 0;
 	timer.it_value.tv_sec = TIME_QUANTA;
@@ -566,6 +600,7 @@ void setup_timer_sjf()
 
 static void sched_psjf()
 {
+
 	// - your own implementation of PSJF
 	// (feel free to modify arguments and return types)
 
@@ -574,22 +609,28 @@ static void sched_psjf()
 	// general algorithm n shit
 	
 	// we are given a run queue with all of the tcb times on there
-	
+		
 	// 1. pop off the minimum based on elapsed time
 	// 2. once we reach our time quanta, switch out
 	// 3. add back to run queue after incrementing by time quanta and heapify
 
 	// do we do this only once?	
-	setup_timer_sjf(TIME_QUANTA);
+	// check that the heap has shit in it
+	setup_timer_sjf();
+// setup_timer_sjf();
+	printf("created timer\n");
 	// first pop from the heap	
 	tcb * thread = pq_remove();
-	current_thread_executing = thread;
+	printf("removed from heap\n");
+	current_tcb_executing = thread;
+	printf("stored thread with id %d\n", current_tcb_executing->thread_id);
 
 	// do the context switching here so that we can move our context to the wanted function that we want to execute
 	// we want to swap between the scheduler context and the function context
-	ucontext_t thread_context = thread->context;		
-	swapcontext(&(scheduler_thread->context), &thread_context);
-
+	printf("obtained context for current thread\n");
+	setcontext(&(current_tcb_executing->context));
+	//swapcontext(&(scheduler_thread->context), &thread_context);
+	
 	// if the function finishes executing before the time quanta, then exit and don't readd to runqueue. also how do we know if the function finishes executing? we do this by setting the uc_link field
 
 	// otherwise, increment the thread by the time quanta and then readd (code for that below) this is wrong, how can we increment the thread elapsed time and re-queue it while in the signal handler?????

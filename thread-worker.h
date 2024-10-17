@@ -18,9 +18,11 @@
 #include <ucontext.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef uint worker_t;
 // enum for tracking thread status
@@ -65,7 +67,7 @@ void free_blocked_queue(BlockedQueue *blocked_queue);
 /* Min-PQ for SJF */
 
 #define PQ_START_LEN 100
-#define TIME_QUANTA 1
+#define TIME_QUANTA .0001
 
 typedef struct
 {
@@ -134,6 +136,7 @@ typedef struct worker_mutex_t
 
 // YOUR CODE HERE
 
+/*
 enum Status
 {
 	READY,
@@ -141,6 +144,7 @@ enum Status
 	BLOCKED,
 	TERMINATED,
 };
+*/
 
 enum Mutex_Status
 {
@@ -181,6 +185,12 @@ int worker_mutex_destroy(worker_mutex_t *mutex);
 
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
+
+static void sched_psjf();
+
+static void sched_mlfq();
+
+static void schedule();
 
 #ifdef USE_WORKERS
 #define pthread_t worker_t
