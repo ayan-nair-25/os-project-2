@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <signal.h>
 
 #define STACK_SIZE SIGSTKSZ
@@ -33,6 +34,9 @@ typedef enum
 	BLOCKED,
 	TERMINATED
 } thread_status;
+
+#define TIME_QUANTUM_USEC 10000 // 10ms
+#define REFRESH_QUANTUM 100 		// refresh after 100 time units
 
 /* LL queue for 'blocked' state */
 
@@ -107,9 +111,10 @@ typedef struct TCB
 	// thread pritority
 	int priority;
 	// add the blocked queue
-	Queue * queue;
+	Queue *waiting_threads;
 	// And more ...
 	uint elapsed_time;
+	void *exit_value;
 } tcb;
 
 typedef enum
@@ -137,7 +142,6 @@ typedef struct worker_mutex_t
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
 // YOUR CODE HERE
-
 
 /* Function Declarations: */
 
@@ -173,27 +177,24 @@ int worker_mutex_destroy(worker_mutex_t *mutex);
 /* Function to print global statistics. Do not modify this function.*/
 void print_app_stats(void);
 
-
 // MLFQ IMPL
-
-
 
 /*
 MLFQ Rules (8.6 OSTEP)
 
 • Rule 1: If Priority(A) > Priority(B), A runs (B doesn’t).
 
-• Rule 2: If Priority(A) = Priority(B), A & B run in round-robin fashion using 
+• Rule 2: If Priority(A) = Priority(B), A & B run in round-robin fashion using
 	the time slice (quantum length) of the given queue.
 
-• Rule 3: When a job enters the system, it is placed at the highest priority 
+• Rule 3: When a job enters the system, it is placed at the highest priority
 	(the topmost queue).
 
-• Rule 4: Once a job uses up its time allotment at a given level (regardless 
-	of how many times it has given up the CPU), its priority is reduced 
+• Rule 4: Once a job uses up its time allotment at a given level (regardless
+	of how many times it has given up the CPU), its priority is reduced
 	(i.e., it moves down one queue).
 
-• Rule 5: After some time period S, move all the jobs in the system to the 
+• Rule 5: After some time period S, move all the jobs in the system to the
 	topmost queue.
 
 
@@ -202,7 +203,8 @@ MLFQ Rules (8.6 OSTEP)
 #define TIME_QUANTUM 10
 #define REFRESH_QUANTUM 100
 
-typedef struct {
+typedef struct
+{
 	Queue *high_prio_queue;
 	Queue *medium_prio_queue;
 	Queue *default_prio_queue;
@@ -214,21 +216,6 @@ void MLFQ_init();
 int MLFQ_add(int priority_level, tcb *thread);
 
 tcb *MLFQ_remove(int priority_level);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #ifdef USE_WORKERS
 #define pthread_t worker_t

@@ -12,12 +12,15 @@ long tot_cntx_switches = 0;
 double avg_turn_time = 0;
 double avg_resp_time = 0;
 
-// INITAILIZE ALL YOUR OTHER VARIABLES HERE
-// YOUR CODE HERE
 worker_t current_thread_id = 0;
 
 static PriorityQueue *heap;
 static MLFQ *mlfq;
+tcb *current_running_thread = NULL;
+ucontext_t scheduler_context;
+static Queue *all_tcb_queue = NULL;
+
+static atomic_int time_since_last_refresh = 0;
 
 /* min priority queue */
 
@@ -197,6 +200,37 @@ tcb *queue_remove(Queue *queue)
 	return ret;
 }
 
+tcb *queue_remove_specific(Queue *queue, worker_t thread_to_remove)
+{
+	tcb *ret;
+	if (queue == NULL || queue->length == 0 ||
+			(queue->length == 1 && queue->front->data->thread_id != thread_to_remove))
+	{
+		ret = NULL;
+	}
+	else if (queue->length == 1)
+	{
+		ret = queue->front->data;
+		queue->front = queue->rear = NULL;
+		queue->length--;
+	}
+	else
+	{
+		Node *ptr = queue->front;
+		while (ptr != NULL)
+		{
+			if (ptr->data->thread_id = thread_to_remove)
+			{
+				ret = ptr->data;
+				Node *prev = ptr->prev;
+				prev->next = ptr->next;
+				break;
+			}
+		}
+	}
+	return ret;
+}
+
 // check if this works
 int unblock_threads(Queue *queue)
 {
@@ -240,9 +274,35 @@ void free_queue(Queue *queue)
 
 // ----------------------------- //
 
+void block_timer_signal(sigset_t *old_set)
+{
+	sigset_t set;
+	sigemptyset(&set);
+	sigaddset(&set, SIGVTALRM);
+	sigprocmask(SIG_BLOCK, &set, old_set);
+}
+
+void unblock_timer_signal(sigset_t *old_set)
+{
+	sigprocmask(SIG_SETMASK, old_set, NULL);
+}
+
+// ----------------------------- //
+
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg)
 {
+
+	if (all_tcb_queue == NULL)
+	{
+		all_tcb_queue = queue_init();
+	}
+
+	if (mlfq == NULL)
+	{
+		MLFQ_init();
+		init_scheduler();
+	}
 
 	// - create Thread Control Block (TCB)
 	tcb *worker_tcb = malloc(sizeof(tcb));
@@ -266,7 +326,7 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	worker_tcb->context = cctx;
 	// after everything is set, push this thread into run queue and
 	// initialize pq if not initialized alr
-	worker_tcb->queue = queue_init();
+	worker_tcb->waiting_threads = queue_init();
 	if (heap == NULL)
 	{
 		pq_init();
@@ -274,19 +334,36 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	pq_add(worker_tcb);
 	// - make it ready for the execution.
 
+	sigset_t old_set;
+	block_timer_signal(&old_set);
+
+	queue_add(all_tcb_queue, worker_tcb);
+
+	MLFQ_add(HIGH_PRIO, worker_tcb);
+
 	// YOUR CODE HERE
 
-	return 0;
+	return 0
 };
 
 #ifdef MLFQ
 /* This function gets called only for MLFQ scheduling set the worker priority. */
 int worker_setschedprio(worker_t thread, int prio)
 {
+	tcb *target_tcb = _find_thread(thread);
+	if (target_tcb == NULL)
+	{
+		return -1;
+	}
 
-	// Set the priority value to your thread's TCB
-	// YOUR CODE HERE
+	sigset_t old_set;
+	block_timer_signal(&old_set);
 
+	target_tcb->priority = prio;
+	target_tcb->current_queue_level = prio;
+	target_tcb->time_remaining = get_time_quantum(prio);
+
+	unblock_timer_signal(&old_set);
 	return 0;
 }
 #endif
@@ -309,87 +386,56 @@ void worker_exit(void *value_ptr) {
 
 };
 
-static tcb _find_thread(worker_t thread)
+static tcb *_find_thread(worker_t thread)
 {
-	// implement function here
-	return;
+	if (all_tcb_queue == NULL || all_tcb_queue->length == 0)
+	{
+		return NULL;
+	}
+	Node *current = all_tcb_queue->front;
+	while (current != NULL)
+	{
+		if (current->data->thread_id == thread)
+		{
+			return current->data;
+		}
+		current = current->next;
+	}
+	return NULL;
 };
 
-/* Wait for thread termination */
+int worker_join(worker_t thread, void **value_ptr)
+{
+	tcb *target_thread = _find_thread(thread);
+	if (target_thread == NULL)
+	{
+		return -1;
+	}
 
-/*
-General algo:
-sem is located in each TCB
-on thread creation init sem
-find thread in worker join and wait on TCB sem if needed
-wait for sem to be signaled somehow, prob in yield/exit, after join?
-have to then destroy sem when thread is taken off queue somehow
-*/
-int worker_join(worker_t thread, void **value_ptr) {
-	// // - wait for a specific thread to terminate
-	// // - de-allocate any dynamic memory created by the joining thread
-	// tcb *ref_thread = get_tcb(thread);
-	// if (ref_thread == NULL)
-	// {
-	// 	// thread is not found
-	// 	return -1;
-	// }
-	// if (ref_thread->status == TERMINATED)
-	// {
-	// 	// thread already terminated
-	// 	if (value_ptr != NULL)
-	// 	{
-	// 		;
-	// 		// set return value of thread
-	// 	}
-	// 	return 0;
-	// }
+	if (target_thread->stat == TERMINATED)
+	{
+		if (value_ptr != NULL)
+		{
+			*value_ptr = target_thread->exit_value;
+		}
+		return 0;
+	}
 
-	// // else move thread to blocked queue
+	sigset_t old_set;
+	block_timer_signal(&old_set);
 
-	// return 0;
+	tcb *current_thread = current_running_thread;
+	if (target_thread->waiting_threads == NULL)
+	{
+		target_thread->waiting_threads = queue_init();
+	}
+	queue_add(target_thread->waiting_threads, current_thread);
+	current_thread->stat = BLOCKED;
 
-	/*
-	each TCB will have a list of threads waiting to join on it
+	unblock_timer_signal(&old_set);
+	swapcontext(&(current_thread->context), &(scheduler_context));
 
-	GENERAL OUTLINE:
-	check if ref thread is null
-	if it is:
-		early return + possible error set
-
-	check if ref thread is terminated
-	if it is:
-		check if value ptr is null
-			if it is not:
-				value ptr = ref_thread->exit_value
-	else:
-		set calling thread to BLOCKED and move calling thread to blocked queue
-		add calling thread to list of threads wanting to join TCB
-		yield control (scheduler will switch context)
-
-
-	What does the scheduler do next?
-	Scheduler will select the next READY thread to run
-
-	When does unblocking happen?
-	During worker_exit() of the ref thread:
-		change state to terminated
-		iterate over waiting list of threads and set their status to ready
-		move them from the blocked queue to the ready queue
-		yield control
-
-
-	IMPORTANT: MULTIPLE BLOCKED QUEUES BASED ON EVENT CAUSING BLOCKING
-
-	Each resource has its own blocked queue.
-	This blocked queue lists threads waiting for that resource to
-	either become available or to terminate, etc.
-
-
-	When the resource DOES terminate/become available,
-	it iterates through its separate blocked queue and
-	adds it to a global run queue.
-	*/
+	return 0;
 };
 
 /* initialize the mutex lock */
@@ -427,21 +473,33 @@ int worker_mutex_lock(worker_mutex_t *mutex)
 
 	// thread is unowned and calling thread can enter crit sect
 	// pretend this is current thread
-	tcb *curr_thread = NULL;
-	if (mutex->status == UNLOCKED)
+	tcb *curr_thread = current_running_thread;
+	int expected = UNLOCKED;
+	while (!__atomic_compare_exchange_n(
+			&(mutex->status),
+			&expected,
+			LOCKED,
+			0,
+			__ATOMIC_ACQUIRE,
+			__ATOMIC_RELAXED))
 	{
-		mutex->status = LOCKED;
-		mutex->owner_thread = curr_thread;
-		return 0;
+		// Block signals during critical section
+		sigset_t old_set;
+		block_timer_signal(&old_set);
+
+		// Add current thread to mutex waiting list
+		queue_add(mutex->queue, curr_thread);
+		curr_thread->stat = BLOCKED;
+
+		// Unblock signals
+		unblock_timer_signal(&old_set);
+
+		// Swap to scheduler
+		swapcontext(&(curr_thread->context), &scheduler_context);
+		expected = UNLOCKED;
 	}
 
-	// add current thread to mutex waiting list
-	if (queue_add(mutex->queue, curr_thread) == -1)
-	{
-		// handle error
-		return -1;
-	}
-	worker_yield();
+	mutex->owner_thread = curr_thread;
 	return 0;
 };
 
@@ -453,9 +511,18 @@ int worker_mutex_unlock(worker_mutex_t *mutex)
 	// so that they could compete for mutex later.
 
 	tcb *current_thread = NULL;
+	if (mutex->owner_thread != current_thread)
+	{
+		return -1;
+	}
+
 	mutex->owner_thread = NULL;
-	mutex->status = UNLOCKED;
-	unblock_threads(mutex->queue);
+	__atomic_store_n(&(mutex->status), UNLOCKED, __ATOMIC_RELEASE);
+	tcb *next_thread;
+	if (queue_remove(mutex->queue) == 0)
+	{
+		queue_add(mutex->queue, next_thread);
+	}
 	return 0;
 };
 
@@ -537,8 +604,6 @@ tcb *MLFQ_remove(int priority_level)
 	}
 }
 
-
-
 /* scheduler */
 static void schedule()
 {
@@ -555,11 +620,13 @@ static void schedule()
 
 	// YOUR CODE HERE
 
+	current_running_thread = NULL;
+
 // - schedule policy
 #ifndef MLFQ
-	// Choose PSJF
+	sched_psjf();
 #else
-	// Choose MLFQ
+	sched_mlfq();
 #endif
 }
 
@@ -572,21 +639,110 @@ static void sched_psjf()
 	// YOUR CODE HERE
 }
 
-/* Preemptive MLFQ scheduling algorithm */
-static void sched_mlfq()
+static void refresh_all_queues()
 {
-	// - your own implementation of MLFQ
-	// (feel free to modify arguments and return types)
+	sigset_t old_set;
+	block_timer_signal(&old_set);
 
-	// YOUR CODE HERE
+	while (mlfq->low_prio_queue->length > 0)
+	{
+		tcb *thread = queue_remove(mlfq->low_prio_queue);
+		queue_add(mlfq->high_prio_queue, thread);
+	}
+	while (mlfq->default_prio_queue->length > 0)
+	{
+		tcb *thread = queue_remove(mlfq->default_prio_queue);
+		queue_add(mlfq->high_prio_queue, thread);
+	}
+	while (mlfq->medium_prio_queue->length > 0)
+	{
+		tcb *thread = queue_remove(mlfq->medium_prio_queue);
+		queue_add(mlfq->high_prio_queue, thread);
+	}
+
+	unblock_timer_signal(&old_set);
 }
 
-// DO NOT MODIFY THIS FUNCTION
-/* Function to print global statistics. Do not modify this function.*/
-void print_app_stats(void)
+static void demote_thread(tcb *thread)
 {
+	// already fucked, spare its life
+	if (thread->stat != LOW_PRIO)
+	{
+		return;
+	}
 
-	fprintf(stderr, "Total context switches %ld \n", tot_cntx_switches);
-	fprintf(stderr, "Average turnaround time %lf \n", avg_turn_time);
-	fprintf(stderr, "Average response time  %lf \n", avg_resp_time);
+	sigset_t old_set;
+	block_timer_signal(&old_set);
+
+	Queue *queue_to_search;
+	Queue *queue_to_add_to;
+	if (thread->stat == HIGH_PRIO)
+	{
+		queue_to_search = mlfq->high_prio_queue;
+		queue_to_add_to = mlfq->medium_prio_queue;
+	}
+	else if (thread->stat == MEDIUM_PRIO)
+	{
+		queue_to_search = mlfq->medium_prio_queue;
+		queue_to_add_to = mlfq->default_prio_queue;
+	}
+	else
+	{
+		queue_to_search = mlfq->default_prio_queue;
+		queue_to_add_to = mlfq->low_prio_queue;
+	}
+
+	Node *ptr = queue_to_search->front;
+	while (ptr != NULL)
+	{
+		if (ptr->data->thread_id == thread->thread_id)
+		{
+			tcb *rem_thread = queue_remove_specific(queue_to_search, thread->thread_id);
+			queue_add(queue_to_add_to, rem_thread);
+		}
+		ptr = ptr->next;
+	}
+}
+
+/* Preemptive MLFQ scheduling algorithm */
+/* Need to track a thread's elapsed time and figure out when to demote a thread */
+static void sched_mlfq()
+{
+	sigset_t old_set;
+	block_timer_signal(&old_set);
+
+	if (time_since_last_refresh >= REFRESH_QUANTUM)
+	{
+		refresh_all_queues();
+		time_since_last_refresh = 0;
+	}
+
+	tcb *next_thread = NULL;
+	if (mlfq->high_prio_queue->length > 0)
+	{
+		next_thread = queue_remove(mlfq->high_prio_queue);
+	}
+	else if (mlfq->medium_prio_queue->length > 0)
+	{
+		next_thread = queue_remove(mlfq->medium_prio_queue);
+	}
+	else if (mlfq->default_prio_queue->length > 0)
+	{
+		next_thread = queue_remove(mlfq->default_prio_queue);
+	}
+	else if (mlfq->low_prio_queue->length > 0)
+	{
+		next_thread = queue_remove(mlfq->low_prio_queue);
+	}
+
+	if (next_thread != NULL)
+	{
+		current_running_thread = next_thread;
+
+		// update benchmarks
+		// context switch type beat
+		swapcontext(&(scheduler_context), &(current_running_thread->context));
+	}
+
+	unblock_timer_signal(&old_set);
 }
