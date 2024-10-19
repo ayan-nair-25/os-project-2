@@ -15,7 +15,7 @@ double avg_resp_time = 0;
 worker_t current_thread_id = 0;
 
 static PriorityQueue *heap;
-static MLFQ *mlfq;
+static MLFQ_t *mlfq;
 tcb *current_running_thread = NULL;
 ucontext_t scheduler_context;
 static Queue *all_tcb_queue = NULL;
@@ -285,7 +285,6 @@ void unblock_timer_signal(sigset_t *old_set)
 
 // ----------------------------- //
 // Timer and Scheduler Initialization
-
 
 void timer_handler(int signum)
 {
@@ -565,12 +564,12 @@ int worker_mutex_lock(worker_mutex_t *mutex)
 
         expected = UNLOCKED;
         while (!__atomic_compare_exchange_n(
-                   &(mutex->status),
-                   &expected,
-                   LOCKED,
-                   0,
-                   __ATOMIC_ACQUIRE,
-                   __ATOMIC_RELAXED))
+            &(mutex->status),
+            &expected,
+            LOCKED,
+            0,
+            __ATOMIC_ACQUIRE,
+            __ATOMIC_RELAXED))
         {
             unblock_timer_signal(&old_set);
             swapcontext(&(current_running_thread->context), &scheduler_context);
@@ -626,7 +625,7 @@ int worker_mutex_destroy(worker_mutex_t *mutex)
 
 void MLFQ_init()
 {
-    mlfq = (MLFQ *)malloc(sizeof(MLFQ));
+    mlfq = (MLFQ_t *)malloc(sizeof(MLFQ_t));
 
     if (mlfq == NULL)
     {
@@ -808,11 +807,6 @@ static void sched_mlfq()
     {
         next_thread = queue_remove(mlfq->low_prio_queue);
     }
-    else
-    {
-        // No threads to schedule
-        exit(0);
-    }
 
     if (next_thread != NULL)
     {
@@ -834,10 +828,20 @@ static void sched_mlfq()
 
         // Switch to the next thread
         swapcontext(&scheduler_context, &(current_running_thread->context));
-    }
 
-    unblock_timer_signal(&old_set);
+        // After the thread finishes, control returns here
+        // Continue scheduling
+        unblock_timer_signal(&old_set);
+        sched_mlfq();
+    }
+    else
+    {
+        // No more threads to schedule; return control
+        unblock_timer_signal(&old_set);
+        return;
+    }
 }
+
 
 // ----------------------------- //
 // Worker Set Scheduling Priority
@@ -885,6 +889,12 @@ static void schedule()
 #else
     sched_mlfq();
 #endif
+    return;
+}
+
+void set_scheduler_uc_link(ucontext_t *uc_link)
+{
+    scheduler_context.uc_link = uc_link;
 }
 
 void init_scheduler()
@@ -910,4 +920,20 @@ void init_scheduler()
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0; // No auto-reload
     setitimer(ITIMER_VIRTUAL, &timer, NULL);
+}
+
+void run_threads()
+{
+    // Initialize the scheduler if not already done
+    static int scheduler_initialized = 0;
+    if (!scheduler_initialized)
+    {
+        init_scheduler();
+        scheduler_initialized = 1;
+    }
+
+    // Start the scheduler
+    setcontext(&scheduler_context);
+
+    // Control will return here when the scheduler has no more threads to schedule
 }

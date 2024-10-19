@@ -64,7 +64,11 @@ typedef struct
 	uint length;
 } Queue;
 
+void set_scheduler_uc_link(ucontext_t *uc_link);
+
 void init_scheduler();
+
+void run_threads();
 
 void timer_handler(int signum);
 
@@ -228,7 +232,7 @@ typedef struct
 	Queue *medium_prio_queue;
 	Queue *default_prio_queue;
 	Queue *low_prio_queue;
-} MLFQ;
+} MLFQ_t;
 
 void MLFQ_init();
 
