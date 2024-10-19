@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdatomic.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #define STACK_SIZE SIGSTKSZ
 typedef uint worker_t;
@@ -36,7 +37,13 @@ typedef enum
 } thread_status;
 
 #define TIME_QUANTUM_USEC 10000 // 10ms
-#define REFRESH_QUANTUM 100 		// refresh after 100 time units
+
+#define HIGH_PRIO_QUANTUM_USEC (10 * 1000)		// 10ms
+#define MEDIUM_PRIO_QUANTUM_USEC (20 * 1000)	// 20ms
+#define DEFAULT_PRIO_QUANTUM_USEC (30 * 1000) // 30ms
+#define LOW_PRIO_QUANTUM_USEC (40 * 1000)			// 40ms
+
+#define REFRESH_QUANTUM_USEC (100 * TIME_QUANTUM_USEC) // Adjust as per project requirements
 
 /* LL queue for 'blocked' state */
 
@@ -45,7 +52,7 @@ typedef struct TCB tcb;
 typedef struct
 {
 	tcb *data;
-	struct Node *next, *prev;
+	Node *next, *prev;
 } Node;
 
 Node *create_node(tcb *data, Node *prev);
@@ -55,6 +62,16 @@ typedef struct
 	Node *front, *rear;
 	uint length;
 } Queue;
+
+void init_scheduler();
+
+void timer_handler(int signum);
+
+int get_time_quantum(int priority_level);
+
+void demote_thread(tcb *thread);
+
+void refresh_all_queues();
 
 Queue *queue_init();
 
@@ -108,10 +125,16 @@ typedef struct TCB
 	ucontext_t context;
 	// thread stack
 	char *stack;
-	// thread pritority
+	// thread priority
 	int priority;
-	// add the blocked queue
+	// current queue level (for MLFQ)
+	int current_queue_level;
+	// time remaining in current time quantum
+	int time_remaining;
+	// queue of threads waiting on this thread (for worker_join)
 	Queue *waiting_threads;
+	// parent thread (for worker_join)
+	tcb *parent_thread;
 	// And more ...
 	uint elapsed_time;
 	void *exit_value;
@@ -144,11 +167,6 @@ typedef struct worker_mutex_t
 // YOUR CODE HERE
 
 /* Function Declarations: */
-
-/* find tcb in runqueue */
-// will need to handle finding a TCB in a multi-level queue
-static tcb *get_tcb(worker_t thread);
-
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg);
 
