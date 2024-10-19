@@ -286,30 +286,6 @@ void unblock_timer_signal(sigset_t *old_set)
 // ----------------------------- //
 // Timer and Scheduler Initialization
 
-void init_scheduler()
-{
-    // Initialize scheduler context
-    getcontext(&scheduler_context);
-    scheduler_context.uc_link = NULL;
-    scheduler_context.uc_stack.ss_sp = malloc(STACK_SIZE);
-    scheduler_context.uc_stack.ss_size = STACK_SIZE;
-    scheduler_context.uc_stack.ss_flags = 0;
-    makecontext(&scheduler_context, schedule, 0);
-
-    // Set up the signal handler for timer interrupts
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = &timer_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_NODEFER;
-    sigaction(SIGVTALRM, &sa, NULL);
-
-    // Start the timer with an initial value
-    timer.it_value.tv_sec = 0;
-    timer.it_value.tv_usec = TIME_QUANTUM_USEC; // Start with default quantum
-    timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = 0; // No auto-reload
-    setitimer(ITIMER_VIRTUAL, &timer, NULL);
-}
 
 void timer_handler(int signum)
 {
@@ -356,57 +332,99 @@ void timer_handler(int signum)
 /* create a new thread */
 int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg)
 {
+    // Initialize the all_tcb_queue if not already initialized
     if (all_tcb_queue == NULL)
     {
         all_tcb_queue = queue_init();
+        if (all_tcb_queue == NULL)
+        {
+            perror("Failed to initialize all_tcb_queue");
+            return -1;
+        }
     }
 
+    // Initialize MLFQ and scheduler if not already initialized
     if (mlfq == NULL)
     {
         MLFQ_init();
         init_scheduler();
     }
 
-    // - create Thread Control Block (TCB)
+    // Create a new Thread Control Block (TCB)
     tcb *worker_tcb = malloc(sizeof(tcb));
+    if (worker_tcb == NULL)
+    {
+        perror("Failed to allocate memory for tcb");
+        return -1;
+    }
+
+    // Assign a unique thread ID
     worker_tcb->thread_id = current_thread_id++;
-    // - allocate space of stack for this thread to run
+
+    // Allocate stack space for the new thread
     worker_tcb->stack = malloc(STACK_SIZE);
-    // error check
     if (worker_tcb->stack == NULL)
     {
         perror("Failed to allocate stack");
-        exit(1);
+        free(worker_tcb);
+        return -1;
     }
-    // - create and initialize the context of this worker thread
+
+    // Initialize the thread context
     getcontext(&(worker_tcb->context));
-    worker_tcb->context.uc_link = NULL;
+    worker_tcb->context.uc_link = &scheduler_context; // When thread finishes, control returns to scheduler
     worker_tcb->context.uc_stack.ss_sp = worker_tcb->stack;
     worker_tcb->context.uc_stack.ss_size = STACK_SIZE;
     worker_tcb->context.uc_stack.ss_flags = 0;
+
+    // Make the context to start executing the function with the given argument
     makecontext(&(worker_tcb->context), (void (*)(void))function, 1, arg);
 
     // Initialize thread fields
     worker_tcb->stat = READY;
-    worker_tcb->priority = HIGH_PRIO; // Default priority
+    worker_tcb->priority = HIGH_PRIO; // Default initial priority
     worker_tcb->current_queue_level = HIGH_PRIO;
     worker_tcb->time_remaining = get_time_quantum(HIGH_PRIO);
     worker_tcb->waiting_threads = queue_init();
+    if (worker_tcb->waiting_threads == NULL)
+    {
+        perror("Failed to initialize waiting_threads queue");
+        free(worker_tcb->stack);
+        free(worker_tcb);
+        return -1;
+    }
     worker_tcb->elapsed_time = 0;
     worker_tcb->exit_value = NULL;
     worker_tcb->parent_thread = NULL;
 
-    // Add to all TCBs
+    // Add the new thread to the all_tcb_queue
     sigset_t old_set;
     block_timer_signal(&old_set);
 
-    queue_add(all_tcb_queue, worker_tcb);
+    if (queue_add(all_tcb_queue, worker_tcb) != 0)
+    {
+        perror("Failed to add thread to all_tcb_queue");
+        free(worker_tcb->waiting_threads);
+        free(worker_tcb->stack);
+        free(worker_tcb);
+        unblock_timer_signal(&old_set);
+        return -1;
+    }
 
-    // Add to MLFQ
-    MLFQ_add(worker_tcb->current_queue_level, worker_tcb);
+    // Add the new thread to the MLFQ
+    if (MLFQ_add(worker_tcb->current_queue_level, worker_tcb) != 0)
+    {
+        perror("Failed to add thread to MLFQ");
+        free(worker_tcb->waiting_threads);
+        free(worker_tcb->stack);
+        free(worker_tcb);
+        unblock_timer_signal(&old_set);
+        return -1;
+    }
 
     unblock_timer_signal(&old_set);
 
+    // Return the thread ID to the caller
     *thread = worker_tcb->thread_id;
 
     return 0;
@@ -754,28 +772,6 @@ void refresh_all_queues()
 // Scheduler
 
 /* scheduler */
-static void schedule()
-{
-    // - every time a timer interrupt occurs, your worker thread library
-    // should be context-switched from a thread context to this
-    // schedule() function
-
-    // - invoke scheduling algorithms according to the policy (PSJF or MLFQ)
-
-    // if (sched == PSJF)
-    //      sched_psjf();
-    // else if (sched == MLFQ)
-    //      sched_mlfq();
-
-    // YOUR CODE HERE
-
-    // - schedule policy
-#ifndef MLFQ
-    sched_psjf();
-#else
-    sched_mlfq();
-#endif
-}
 
 /* Pre-emptive Shortest Job First (POLICY_PSJF) scheduling algorithm */
 static void sched_psjf()
@@ -868,5 +864,50 @@ int worker_setschedprio(worker_t thread, int prio)
 }
 #endif
 
-// ----------------------------- //
-// End of thread-worker.c
+static void schedule()
+{
+    // - every time a timer interrupt occurs, your worker thread library
+    // should be context-switched from a thread context to this
+    // schedule() function
+
+    // - invoke scheduling algorithms according to the policy (PSJF or MLFQ)
+
+    // if (sched == PSJF)
+    //      sched_psjf();
+    // else if (sched == MLFQ)
+    //      sched_mlfq();
+
+    // YOUR CODE HERE
+
+    // - schedule policy
+#ifndef MLFQ
+    sched_psjf();
+#else
+    sched_mlfq();
+#endif
+}
+
+void init_scheduler()
+{
+    // Initialize scheduler context
+    getcontext(&scheduler_context);
+    scheduler_context.uc_link = NULL;
+    scheduler_context.uc_stack.ss_sp = malloc(STACK_SIZE);
+    scheduler_context.uc_stack.ss_size = STACK_SIZE;
+    scheduler_context.uc_stack.ss_flags = 0;
+    makecontext(&scheduler_context, schedule, 0);
+
+    // Set up the signal handler for timer interrupts
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = &timer_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_NODEFER;
+    sigaction(SIGVTALRM, &sa, NULL);
+
+    // Start the timer with an initial value
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = TIME_QUANTUM_USEC; // Start with default quantum
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 0; // No auto-reload
+    setitimer(ITIMER_VIRTUAL, &timer, NULL);
+}

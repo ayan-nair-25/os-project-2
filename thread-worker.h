@@ -22,6 +22,7 @@
 #include <stdatomic.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <string.h>
 
 #define STACK_SIZE SIGSTKSZ
 typedef uint worker_t;
@@ -49,10 +50,10 @@ typedef enum
 
 // this might cause an error or a duplicate definition issue but idk for sure
 typedef struct TCB tcb;
-typedef struct
+typedef struct Node
 {
 	tcb *data;
-	Node *next, *prev;
+	struct Node *next, *prev;
 } Node;
 
 Node *create_node(tcb *data, Node *prev);
