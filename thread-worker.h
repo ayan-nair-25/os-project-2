@@ -30,8 +30,6 @@ typedef enum
 {
 	READY,
 	RUNNING,
-	WAITING,
-	DELAYED,
 	BLOCKED,
 	TERMINATED
 } thread_status;
@@ -67,7 +65,7 @@ void free_blocked_queue(BlockedQueue *blocked_queue);
 /* Min-PQ for SJF */
 
 #define PQ_START_LEN 100
-#define TIME_QUANTA .0001
+#define TIME_QUANTA 100
 
 typedef struct
 {
@@ -111,8 +109,10 @@ typedef struct TCB
 	int priority;
 	// add the blocked queue
 	BlockedQueue * queue;
+	// value pointer
+	void * value_ptr;	
 	// And more ...
-	uint elapsed_time;
+	double elapsed_time;
 } tcb;
 
 /* mutex struct definition */

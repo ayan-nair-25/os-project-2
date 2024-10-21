@@ -269,6 +269,9 @@ static void sched_psjf();
 static void sched_mlfq();
 static void schedule();
 
+void start_timer();
+void get_time_elapsed();
+void stop_timer();
 /* create a new thread */
 void create_context(ucontext_t * context)
 {
@@ -306,65 +309,63 @@ void create_scheduler_thread()
 
 void create_main_thread()
 {
-	printf("creating main context...\n");
+	//printf("creating main context...\n");
 	tcb * main_thread = malloc(sizeof(tcb));
-	printf("created thread\n");
 	main_thread->thread_id = 1;
-	printf("got thread id\n");
 
 	ucontext_t main_cctx;
-	printf("created context obj\n");
+	//printf("created context obj\n");
 //	create_context(&main_cctx);
 
 	// get the main context and set it
 	getcontext(&main_cctx);
-	printf("we are back in main create func now! \n");
+	//printf("we are back in main create func now! \n");
 	if (stored_main_thread == NULL)
 	{
-		printf("got context for MAIN\n");
+		//printf("got context for MAIN\n");
 
 		// now we create our context to start at the main
 		main_thread->context = main_cctx;
-		printf("setting context\n");
+		//printf("setting context\n");
 		main_thread->queue = blocked_queue_init();
 		stored_main_thread = main_thread;
 		current_tcb_executing = main_thread;
 		// add to pq
-		printf("created main context :D\n");
+		//printf("created main context :D\n");
 	}
-	printf("done w main init\n");
-	
 }
 
 tcb * create_new_worker(worker_t * thread, void*(*function)(void *), void *arg)
 {
-	printf("intializing new thread...\n");
+	//printf("intializing new thread...\n");
 
 	tcb * worker_tcb = malloc(sizeof(tcb));
-	printf("created tcb\n");
+	//printf("created tcb\n");
 
 	worker_tcb->thread_id = current_thread_id++;
-	printf("incremented thread id :D\n");
+	//printf("incremented thread id :D\n");
 	//*thread = current_thread_id++;
-	printf("created and stored thread id\n");
+	////printf("created and stored thread id\n");
 	
 	ucontext_t context;
 	create_context(&context);
-	printf("created context\n");
+	//printf("created context\n");
 
 	makecontext(&context, (void *) function, 0);
 	worker_tcb->context = context;
-	printf("made context and stored in tcb :p\n");
+	//printf("made context and stored in tcb :p\n");
 
 	// after everything is set, push this thread into run queue and
 	// initialize pq if not initialized alr
 	worker_tcb->queue = blocked_queue_init();
-	printf("created queue :)\n");
+	worker_tcb->stat = READY;
+	worker_tcb->elapsed_time = 0;
+	//printf("created queue :)\n");
 
 
 	// // where to initialize the context to start? also we need to pass in args
 	// // getcontext to init everything
-	printf("initialized new thread\n");
+	//printf("initialized new thread\n");
 	return worker_tcb;
 
 }
@@ -376,36 +377,27 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	// - create and initialize the context of this worker thread
 	// ucontext_t cctx, scheduler_cctx, main_cctx;
 
-	tcb * new_thread = create_new_worker(thread, function, arg);
-	if (heap == NULL) {
-		pq_init();
-	}
 
-	if (stored_main_thread == NULL) 
-	{
-		create_main_thread();
 
-		printf("we have now switched back to worker_create !!!! \n");
-	}
-	pq_add(stored_main_thread);
-
-	if (timerInitialized == 0)
-	{
-		setup_timer_sjf();
-		timerInitialized = 1;
-	}
-
-	printf("RUNNING WORKER CREATE!!!!!! CURRENT THREAD ID BEING CREATED IS %d\n", current_thread_id);
+	//printf("RUNNING WORKER CREATE!!!!!! CURRENT THREAD ID BEING CREATED IS %d\n", current_thread_id);
 
 	// only initialize the scheduler context on the first call
 	// also init the main context
 	if (scheduler_thread == NULL) 
 	{
-		printf("initializing scheduler thread...\n");
+		//printf("initializing scheduler thread...\n");
 
 
 		// setup_timer_sjf();
+
+		setup_timer_sjf();
+		timerInitialized = 1;
+
+		pq_init();
 		create_scheduler_thread();
+		create_main_thread();
+
+		pq_add(stored_main_thread);
 		/*
 		scheduler_thread = malloc(sizeof(scheduler_thread));
 		scheduler_thread->thread_id = 0;
@@ -428,15 +420,13 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		makecontext(&scheduler_cctx, (void *) &schedule, 0);
 		scheduler_thread->context = scheduler_cctx;
 		*/
-		printf("successfully initialized scheduler thread! :) \n");
+		//printf("successfully initialized scheduler thread! :) \n");
 	}
+	tcb * new_thread = create_new_worker(thread, function, arg);
 	// otherwise we add a new thread
-	else
-	{
-		printf("adding to queue....\n");
-		pq_add(new_thread);
-		printf("added\n");
-	}
+	//printf("adding to queue....\n");
+	pq_add(new_thread);
+	//printf("added....\n");
 	// create_new_worker(thread, function, arg);
 	
 		/*
@@ -461,9 +451,9 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		// // getcontext to init everything
 		printf("initialized new thread and added to pq :D\n");
 		*/
-	printf("swapping to scheduler...\n");
+	//printf("swapping to scheduler...\n");
 	//setcontext(&(scheduler_thread->context));
-	swapcontext(&(stored_main_thread->context), &(scheduler_thread->context));
+	swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 	// at the end we set the context to the scheduler
 
 	// - make it ready for the execution.
@@ -528,13 +518,25 @@ int worker_yield()
 	// block the timer
 	// send a signal to modify tcb
 	// do other work
-
+	current_tcb_executing->stat = READY;
+#ifndef MLFQ
+	// figure out how much time in the timer and add
+#endif
+	swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 	return 0;
 };
 
 /* terminate a thread */
 void worker_exit(void *value_ptr) {
-	
+	if (value_ptr)	
+	{
+		// store result of thread in the value pointer	
+		current_tcb_executing->value_ptr = value_ptr;
+	}
+	current_tcb_executing->stat = TERMINATED;
+	free(current_tcb_executing->context.uc_stack.ss_sp);
+
+	setcontext(&(scheduler_thread->context));
 };
 
 static tcb _find_thread(worker_t thread)
@@ -577,8 +579,6 @@ int worker_join(worker_t thread, void **value_ptr)
 	// // else move thread to blocked queue
 
 	// return 0;
-
-
 	/*
 	each TCB will have a list of threads waiting to join on it
 
@@ -717,7 +717,8 @@ static void schedule()
 	// YOUR CODE HERE
 
 // - schedule policy
-	printf("once again back in da scheduler \n");
+	//printf("once again back in da scheduler \n");
+	stop_timer();
 #ifndef MLFQ
 	// Choose PSJF
 	sched_psjf();
@@ -725,7 +726,7 @@ static void schedule()
 	// Choose MLFQ
 	sched_mlfq();
 #endif
-	printf("done scheduling\n");
+	//printf("done scheduling\n");
 }
 
 /* Pre-emptive Shortest Job First (POLICY_PSJF) scheduling algorithm */
@@ -743,32 +744,75 @@ static void schedule()
 void handle_sjf_interrupt(int signum)
 {
 	// modify this to get the exact amount of time using the struct itimer
-	printf("in signal handler :D\n");
+	//printf("in signal handler :D\n");
+	
+	printf("interrupting...\n");
 	current_tcb_executing->elapsed_time += TIME_QUANTA;
+	printf("current tcb executing has ran for: %f seconds \n\n", current_tcb_executing->elapsed_time);
+
+	current_tcb_executing->stat = READY;
 	pq_add(current_tcb_executing);
-	printf("currently have %d\n items in the queue\n", heap->length);
+
+	//printf("currently have %d\n items in the queue\n", heap->length);
 	//setcontext(&(scheduler_thread->context));
 	//swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
-	setcontext(&(scheduler_thread->context));
+	swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 	//swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 	// change the above to setcontext?
 	//swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 }
 
+void get_time_elapsed()
+{
+	struct itimerval time;
+	// get the time
+	getitimer(ITIMER_PROF, &time);
+
+	
+
+}
 void setup_timer_sjf()
 {
-	printf("created timer! \n");
+	printf("initialized timer! \n");
 	struct sigaction sa;
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_handler = &handle_sjf_interrupt;
 	sigaction(SIGPROF, &sa, NULL);
 
 	struct itimerval timer;
-	timer.it_interval.tv_usec = TIME_QUANTA * 1000000;
+	timer.it_interval.tv_usec = TIME_QUANTA * 100;
 	timer.it_interval.tv_sec = 0;
 
-	timer.it_value.tv_usec = TIME_QUANTA * 1000000;
+	timer.it_value.tv_usec = TIME_QUANTA * 100;
 	timer.it_value.tv_sec = 0;
+
+	setitimer(ITIMER_PROF, &timer, NULL);
+}
+
+void start_timer()
+{
+	printf("started timer\n");
+	struct itimerval timer;
+
+	timer.it_interval.tv_usec = TIME_QUANTA * 100;
+	timer.it_interval.tv_sec = 0;
+
+	timer.it_value.tv_usec = TIME_QUANTA * 100;
+	timer.it_value.tv_sec = 0;
+
+	setitimer(ITIMER_PROF, &timer, NULL);
+}
+
+void stop_timer()
+{
+	printf("stopped timer\n");
+	struct itimerval timer;
+
+	timer.it_value.tv_sec = 0;
+	timer.it_value.tv_usec = 0;
+
+	timer.it_interval.tv_sec = 0;
+	timer.it_interval.tv_usec = 0;
 
 	setitimer(ITIMER_PROF, &timer, NULL);
 }
@@ -793,17 +837,19 @@ static void sched_psjf()
 	// check that the heap has shit in it
 	//setup_timer_sjf();
 // setup_timer_sjf();
-	printf("created timer\n");
+	//printf("created timer\n");
 	// first pop from the heap	
 	tcb * thread = pq_remove();
-	printf("removed from heap\n");
+	//printf("removed from heap\n");
 	current_tcb_executing = thread;
-	printf("stored thread with id %d\n", current_tcb_executing->thread_id);
+	//printf("stored thread with id %d\n", current_tcb_executing->thread_id);
 
 	// do the context switching here so that we can move our context to the wanted function that we want to execute
 	// we want to swap between the scheduler context and the function context
-	printf("obtained context for current thread\n");
+	//printf("obtained context for current thread\n");
 	// change this to setcontext?
+	current_tcb_executing->stat = RUNNING;
+	start_timer();
 	setcontext(&(current_tcb_executing->context));
 //	swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
 	//swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
