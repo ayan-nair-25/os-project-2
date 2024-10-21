@@ -19,6 +19,7 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <time.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +67,7 @@ void free_blocked_queue(BlockedQueue *blocked_queue);
 
 #define PQ_START_LEN 100
 #define TIME_QUANTA 100
+#define REFRESH_QUANTA 10000
 
 typedef struct
 {
@@ -107,14 +109,25 @@ typedef struct TCB
 	char *stack;
 	// thread pritority
 	int priority;
+	// current queue level (wow)
+	int current_queue_level;
 	// add the blocked queue
-	BlockedQueue * queue;
+	BlockedQueue *queue;
 	// value pointer
-	void * value_ptr;	
+	void *value_ptr;
 	// And more ...
 	double elapsed_time;
+	// time left before needs to be demoted
+	double time_remaining;
 } tcb;
 
+typedef struct
+{
+	BlockedQueue *high_prio_queue;
+	BlockedQueue *medium_prio_queue;
+	BlockedQueue *default_prio_queue;
+	BlockedQueue *low_prio_queue;
+} MLFQ_t;
 /* mutex struct definition */
 typedef struct worker_mutex_t
 {
@@ -130,7 +143,10 @@ typedef struct worker_mutex_t
 #define MEDIUM_PRIO 2
 #define DEFAULT_PRIO 1
 #define LOW_PRIO 0
-
+#define HIGH_PRIO_QUANTA 50
+#define MEDIUM_PRIO_QUANTA 100
+#define DEFAULT_PRIO_QUANTA 200
+#define LOW_PRIO_QUANTA 400
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
