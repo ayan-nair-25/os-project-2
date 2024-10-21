@@ -328,6 +328,7 @@ void create_main_thread()
 		printf("setting context\n");
 		main_thread->queue = blocked_queue_init();
 		stored_main_thread = main_thread;
+		current_tcb_executing = main_thread;
 		// add to pq
 		printf("created main context :D\n");
 	}
@@ -383,6 +384,7 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 	if (stored_main_thread == NULL) 
 	{
 		create_main_thread();
+
 		printf("we have now switched back to worker_create !!!! \n");
 	}
 	pq_add(stored_main_thread);
