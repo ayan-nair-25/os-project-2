@@ -427,6 +427,17 @@ int worker_yield()
     current_tcb_executing->stat = READY;
 #ifndef MLFQ
     // figure out how much time in the timer and add
+    current_tcb_executing->elapsed_time += (get_time() / 1000.0);
+    stop_timer();
+    // add back to the queue
+    pq_add(current_tcb_executing);
+#else
+    current_tcb_executing->remaining_time -= get_time();
+    if (current_tcb_executing->remaining_time <= 0)
+    {
+        demote_thread(current_tcb_executing);
+    }
+    MLFQ_add(current_tcb_executing->priority, current_tcb_executing);
 #endif
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
     return 0;
@@ -641,7 +652,7 @@ void handle_interrupt(int signum)
     // modify this to get the exact amount of time using the struct itimer
     // printf("in signal handler :D\n");
     printf("interrupting...\n");
-    current_tcb_executing->elapsed_time += TIME_QUANTA;
+    current_tcb_executing->elapsed_time += (TIME_QUANTA / 1000.0);
     printf("current tcb executing has ran for: %f seconds \n\n", current_tcb_executing->elapsed_time);
     current_tcb_executing->stat = READY;
 #ifdef MLFQ
@@ -669,6 +680,7 @@ void get_time_elapsed()
     struct itimerval time;
     // get the time
     getitimer(ITIMER_PROF, &time);
+    return TIME_QUANTA * 100 - time.it_value.tv_usec;
 }
 void setup_timer_sjf()
 {
