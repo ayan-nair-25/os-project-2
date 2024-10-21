@@ -309,63 +309,41 @@ void create_scheduler_thread()
 
 void create_main_thread()
 {
-	//printf("creating main context...\n");
 	tcb * main_thread = malloc(sizeof(tcb));
 	main_thread->thread_id = 1;
 
 	ucontext_t main_cctx;
-	//printf("created context obj\n");
-//	create_context(&main_cctx);
 
 	// get the main context and set it
 	getcontext(&main_cctx);
-	//printf("we are back in main create func now! \n");
 	if (stored_main_thread == NULL)
 	{
-		//printf("got context for MAIN\n");
-
 		// now we create our context to start at the main
 		main_thread->context = main_cctx;
-		//printf("setting context\n");
 		main_thread->queue = blocked_queue_init();
 		stored_main_thread = main_thread;
 		current_tcb_executing = main_thread;
-		// add to pq
-		//printf("created main context :D\n");
 	}
 }
 
 tcb * create_new_worker(worker_t * thread, void*(*function)(void *), void *arg)
 {
-	//printf("intializing new thread...\n");
-
 	tcb * worker_tcb = malloc(sizeof(tcb));
-	//printf("created tcb\n");
 
 	worker_tcb->thread_id = current_thread_id++;
-	//printf("incremented thread id :D\n");
-	//*thread = current_thread_id++;
-	////printf("created and stored thread id\n");
 	
 	ucontext_t context;
 	create_context(&context);
-	//printf("created context\n");
 
 	makecontext(&context, (void *) function, 0);
 	worker_tcb->context = context;
-	//printf("made context and stored in tcb :p\n");
 
 	// after everything is set, push this thread into run queue and
 	// initialize pq if not initialized alr
 	worker_tcb->queue = blocked_queue_init();
 	worker_tcb->stat = READY;
 	worker_tcb->elapsed_time = 0;
-	//printf("created queue :)\n");
 
-
-	// // where to initialize the context to start? also we need to pass in args
-	// // getcontext to init everything
-	//printf("initialized new thread\n");
 	return worker_tcb;
 
 }
@@ -376,10 +354,6 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 
 	// - create and initialize the context of this worker thread
 	// ucontext_t cctx, scheduler_cctx, main_cctx;
-
-
-
-	//printf("RUNNING WORKER CREATE!!!!!! CURRENT THREAD ID BEING CREATED IS %d\n", current_thread_id);
 
 	// only initialize the scheduler context on the first call
 	// also init the main context
@@ -398,97 +372,11 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 		create_main_thread();
 
 		pq_add(stored_main_thread);
-		/*
-		scheduler_thread = malloc(sizeof(scheduler_thread));
-		scheduler_thread->thread_id = 0;
-
-		// we swap the context manually and don't use the link
-		getcontext(&scheduler_cctx);
-		scheduler_cctx.uc_link = NULL;	
-
-		// init scheduler context stack
-		scheduler_thread->stack = malloc(STACK_SIZE);
-		if (scheduler_thread->stack == NULL) {
-			perror("Failed to allocate stack");
-			exit(1);
-		}
-		scheduler_cctx.uc_stack.ss_sp = scheduler_thread->stack;
-		scheduler_cctx.uc_stack.ss_size = STACK_SIZE;
-		scheduler_cctx.uc_stack.ss_flags = 0;
-
-		// now we create our context to start at the scheduler
-		makecontext(&scheduler_cctx, (void *) &schedule, 0);
-		scheduler_thread->context = scheduler_cctx;
-		*/
-		//printf("successfully initialized scheduler thread! :) \n");
 	}
 	tcb * new_thread = create_new_worker(thread, function, arg);
 	// otherwise we add a new thread
-	//printf("adding to queue....\n");
 	pq_add(new_thread);
-	//printf("added....\n");
-	// create_new_worker(thread, function, arg);
-	
-		/*
-		printf("intializing new thread...\n");
-		getcontext(&cctx);
-		// set up the link so that we automatically context switch back to the scheduler
-		cctx.uc_link = NULL;
-		cctx.uc_stack.ss_sp = worker_tcb->stack;
-		cctx.uc_stack.ss_size = STACK_SIZE;
-		cctx.uc_stack.ss_flags = 0;
-
-		makecontext(&cctx, (void *) function, 0);
-		worker_tcb->context = cctx;
-
-		// after everything is set, push this thread into run queue and
-		// initialize pq if not initialized alr
-		worker_tcb->queue = blocked_queue_init();
-
-		pq_add(worker_tcb);
-
-		// // where to initialize the context to start? also we need to pass in args
-		// // getcontext to init everything
-		printf("initialized new thread and added to pq :D\n");
-		*/
-	//printf("swapping to scheduler...\n");
-	//setcontext(&(scheduler_thread->context));
 	swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
-	// at the end we set the context to the scheduler
-
-	// - make it ready for the execution.
-	/*
-	if (heap->length == 0) 
-	{
-		printf("initializing main thread...\n");
-
-		tcb * main_thread = malloc(sizeof(tcb));
-		main_thread->thread_id = 1;
-
-		// we swap the context manually and don't use the link
-		printf("back to main!! \n");
-		main_cctx.uc_link = NULL;	
-
-		// init main context stack
-		main_thread->stack = malloc(STACK_SIZE);
-		if (main_thread->stack == NULL) {
-			perror("Failed to allocate stack");
-			exit(1);
-		}
-		main_cctx.uc_stack.ss_sp = main_thread->stack;
-		main_cctx.uc_stack.ss_size = STACK_SIZE;
-		main_cctx.uc_stack.ss_flags = 0;
-
-		// now we create our context to start at the main
-		main_thread->context = main_cctx;
-		stored_main_thread = main_thread;
-		pq_add(main_thread);
-		printf("successfully initialized main thread! :) \n");
-	}
-	// do we set the context to the scheduler context immediately in this function???
-	setcontext(&scheduler_cctx);
-
-	*/
 	// YOUR CODE HERE
 	return 0;
 }
@@ -825,19 +713,8 @@ static void sched_psjf()
 
 	// YOUR CODE HERE
 
-	// general algorithm n shit
-	
 	// we are given a run queue with all of the tcb times on there
 		
-	// 1. pop off the minimum based on elapsed time
-	// 2. once we reach our time quanta, switch out
-	// 3. add back to run queue after incrementing by time quanta and heapify
-
-	// do we do this only once?	
-	// check that the heap has shit in it
-	//setup_timer_sjf();
-// setup_timer_sjf();
-	//printf("created timer\n");
 	// first pop from the heap	
 	tcb * thread = pq_remove();
 	//printf("removed from heap\n");
@@ -851,13 +728,6 @@ static void sched_psjf()
 	current_tcb_executing->stat = RUNNING;
 	start_timer();
 	setcontext(&(current_tcb_executing->context));
-//	swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
-	//swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
-	
-	// if the function finishes executing before the time quanta, then exit and don't readd to runqueue. also how do we know if the function finishes executing? we do this by setting the uc_link field
-
-	// otherwise, increment the thread by the time quanta and then readd (code for that below) this is wrong, how can we increment the thread elapsed time and re-queue it while in the signal handler?????
-	// take care of this in the signal handler
 }
 
 /* Preemptive MLFQ scheduling algorithm */
