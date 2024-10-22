@@ -268,7 +268,14 @@ tcb *blocked_queue_remove(BlockedQueue *blocked_queue)
         free(temp);
         blocked_queue->length--;
     }
-    printf("Removed thread %d from blocked queue\n", ret->thread_id);
+    if (ret == NULL)
+    {
+        printf("Blocked queue is empty\n");
+    }
+    else
+    {
+        printf("Removed thread %d from blocked queue\n", ret->thread_id);
+    }
     return ret;
 }
 
@@ -487,6 +494,39 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
     return 0;
 }
 
+int worker_yield()
+{
+
+    // - change worker thread's state from Running to Ready
+    // - save context of this thread to its thread control block
+    // - switch from thread context to scheduler context
+
+    // YOUR CODE HERE
+
+    // block the timer
+    // send a signal to modify tcb
+    // do other work
+
+    printf("Thread %d yielding\n", current_tcb_executing->thread_id);
+    current_tcb_executing->stat = READY;
+#ifndef MLFQ
+    // figure out how much time in the timer and add
+    current_tcb_executing->elapsed_time += (get_time() / 1000.0);
+    stop_timer();
+    // add back to the queue
+    pq_add(current_tcb_executing);
+#else
+    current_tcb_executing->time_remaining -= get_time();
+    if (current_tcb_executing->time_remaining <= 0)
+    {
+        demote_thread(current_tcb_executing);
+    }
+    MLFQ_add(current_tcb_executing->priority, current_tcb_executing);
+#endif
+    swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
+    return 0;
+};
+
 /* Worker Exit */
 void worker_exit(void *value_ptr)
 {
@@ -593,6 +633,138 @@ static tcb *_find_thread(worker_t thread)
         return current_tcb_executing;
     }
     return NULL;
+}
+
+int worker_mutex_init(worker_mutex_t *mutex, const pthread_mutexattr_t *mutexattr)
+{
+    printf("Initializing mutex\n");
+    if (mutex == NULL)
+    {
+        fprintf(stderr, "Mutex init failed: mutex is NULL\n");
+        return -1;
+    }
+
+    mutex->status = UNLOCKED;
+    mutex->owner_thread = NULL;
+    mutex->queue = blocked_queue_init();
+    if (mutex->queue == NULL)
+    {
+        perror("Mutex init failed: Queue init failure");
+        exit(1);
+    }
+    printf("Mutex initialized successfully\n");
+    return 0;
+}
+
+/* Acquire the mutex lock */
+int worker_mutex_lock(worker_mutex_t *mutex)
+{
+    printf("Thread %d attempting to lock mutex\n", current_tcb_executing->thread_id);
+
+    sigset_t old_set;
+    block_timer_signal(&old_set);
+
+    int expected = UNLOCKED;
+    if (!__atomic_compare_exchange_n(
+            &(mutex->status),
+            &expected,
+            LOCKED,
+            0,
+            __ATOMIC_ACQUIRE,
+            __ATOMIC_RELAXED))
+    {
+        // Failed to acquire mutex, add to waiting queue
+        printf("Mutex is locked, thread %d is blocking\n", current_tcb_executing->thread_id);
+        blocked_queue_add(mutex->queue, current_tcb_executing);
+        current_tcb_executing->stat = BLOCKED;
+
+        unblock_timer_signal(&old_set);
+
+        // Swap to scheduler
+        swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
+
+        // Upon return, try to acquire the mutex again
+        block_timer_signal(&old_set);
+
+        expected = UNLOCKED;
+        while (!__atomic_compare_exchange_n(
+            &(mutex->status),
+            &expected,
+            LOCKED,
+            0,
+            __ATOMIC_ACQUIRE,
+            __ATOMIC_RELAXED))
+        {
+            printf("Mutex is still locked, thread %d is blocking again\n", current_tcb_executing->thread_id);
+            unblock_timer_signal(&old_set);
+            swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
+            block_timer_signal(&old_set);
+            expected = UNLOCKED;
+        }
+    }
+
+    mutex->owner_thread = current_tcb_executing;
+    printf("Mutex locked by thread %d\n", current_tcb_executing->thread_id);
+
+    unblock_timer_signal(&old_set);
+
+    return 0;
+}
+
+/* Release the mutex lock */
+int worker_mutex_unlock(worker_mutex_t *mutex)
+{
+    printf("Thread %d attempting to unlock mutex\n", current_tcb_executing->thread_id);
+
+    if (mutex->owner_thread != current_tcb_executing)
+    {
+        fprintf(stderr, "Mutex unlock failed: thread %d does not own the mutex\n", current_tcb_executing->thread_id);
+        return -1;
+    }
+
+    sigset_t old_set;
+    block_timer_signal(&old_set);
+
+    mutex->owner_thread = NULL;
+    __atomic_store_n(&(mutex->status), UNLOCKED, __ATOMIC_RELEASE);
+
+    printf("Mutex unlocked by thread %d\n", current_tcb_executing->thread_id);
+
+    tcb *next_thread = blocked_queue_remove(mutex->queue);
+    if (next_thread != NULL)
+    {
+        printf("Waking up thread %d waiting on mutex\n", next_thread->thread_id);
+        next_thread->stat = READY;
+#ifndef MLFQ
+        pq_add(next_thread);
+#else
+        MLFQ_add(next_thread->current_queue_level, next_thread);
+#endif
+    }
+
+    unblock_timer_signal(&old_set);
+
+    return 0;
+}
+
+/* Destroy the mutex */
+int worker_mutex_destroy(worker_mutex_t *mutex)
+{
+    printf("Destroying mutex\n");
+
+    if (mutex->queue->length > 0)
+    {
+        fprintf(stderr, "Mutex destroy failed: threads are still waiting on the mutex\n");
+        return -1;
+    }
+
+    free_blocked_queue(mutex->queue);
+    mutex->queue = NULL;
+    mutex->owner_thread = NULL;
+    mutex->status = UNLOCKED;
+
+    printf("Mutex destroyed successfully\n");
+    return 0;
 }
 
 /* Scheduler */
