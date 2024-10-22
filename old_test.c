@@ -1,6 +1,7 @@
 #include "thread-worker.h"
 #include <stdio.h>
 
+// gcc old_test.c thread-worker.c -o test
 void hello() 
 {
 	printf("now executing hello1 \n");
