@@ -5,6 +5,7 @@
 #include <signal.h>
 
 #include <pthread.h>
+// #define USE_WORKERS
 #include "../thread-worker.h"
 
 #define DEFAULT_THREAD_NUM 2
@@ -68,7 +69,7 @@ void verify()
 	char a[3];
 	char path[20] = "./record/";
 
-	// sum = 0;
+	sum = 0;
 	memset(mem, 0, RAM_SIZE);
 
 	for (k = 0; k < 10; ++k)
@@ -163,7 +164,6 @@ int main(int argc, char **argv)
 		// printf("%u\n", thread[i]);
 		pthread_join(thread[i], NULL);
 	}
-	printf("[SUUUUUUUUUUUUUUUUUUUUUUUUUUUUM]%d\n", sum);
 
 	fprintf(stderr, "***************************\n");
 
@@ -174,7 +174,7 @@ int main(int argc, char **argv)
 
 	pthread_mutex_destroy(&mutex);
 
-	// feel free to verify your answer here:
+	printf("Our sum: %d\n", sum);
 	verify();
 
 	free(mem);
@@ -186,6 +186,8 @@ int main(int argc, char **argv)
 	print_app_stats();
 	fprintf(stderr, "***************************\n");
 #endif
+
+	// verify();
 
 	return 0;
 }

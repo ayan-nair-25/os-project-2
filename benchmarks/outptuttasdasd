@@ -1,0 +1,538 @@
+Initializing mutex
+Mutex initialized successfully
+Initializing scheduler thread...
+Setting up timer
+Initializing priority queue
+Scheduler thread created
+Main thread created with TID 1
+Added thread 1 to priority queue
+Heap contents:
+Index 0: TID 1, elapsed_time 0.000000
+Created new thread with TID 2
+Added thread 2 to priority queue
+Heap contents:
+Index 0: TID 1, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.000000
+2
+Created new thread with TID 3
+Added thread 3 to priority queue
+Heap contents:
+Index 0: TID 1, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.000000
+3
+Created new thread with TID 4
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 1, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.000000
+Index 3: TID 4, elapsed_time 0.000000
+4
+Created new thread with TID 5
+Added thread 5 to priority queue
+Heap contents:
+Index 0: TID 1, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.000000
+Index 3: TID 4, elapsed_time 0.000000
+Index 4: TID 5, elapsed_time 0.000000
+5
+Created new thread with TID 6
+Added thread 6 to priority queue
+Heap contents:
+Index 0: TID 1, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.000000
+Index 3: TID 4, elapsed_time 0.000000
+Index 4: TID 5, elapsed_time 0.000000
+Index 5: TID 6, elapsed_time 0.000000
+6
+Created new thread with TID 7
+Added thread 7 to priority queue
+Heap contents:
+Index 0: TID 1, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.000000
+Index 3: TID 4, elapsed_time 0.000000
+Index 4: TID 5, elapsed_time 0.000000
+Index 5: TID 6, elapsed_time 0.000000
+Index 6: TID 7, elapsed_time 0.000000
+7
+joining in external_cal...
+worker_join: Main thread attempting to join TID 2
+worker_join: Target thread TID 2 found with status 0
+worker_join: Blocking main thread to wait for TID 2
+Added thread 1 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 6 items in the heap
+Removed thread 2 from priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Index 2: TID 6, elapsed_time 0.000000
+Index 3: TID 7, elapsed_time 0.000000
+Index 4: TID 5, elapsed_time 0.000000
+Scheduler: Popped off thread with TID 2
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Index 2: TID 6, elapsed_time 0.000000
+Index 3: TID 7, elapsed_time 0.000000
+Index 4: TID 5, elapsed_time 0.000000
+Thread 2 starting
+Made it back to external calculate
+Signal handler: Interrupting thread 2
+Thread 2 has run for 0.100000 seconds
+Added thread 2 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Index 2: TID 6, elapsed_time 0.000000
+Index 3: TID 7, elapsed_time 0.000000
+Index 4: TID 5, elapsed_time 0.000000
+Index 5: TID 2, elapsed_time 0.100000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 6 items in the heap
+Removed thread 3 from priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.000000
+Index 1: TID 5, elapsed_time 0.000000
+Index 2: TID 6, elapsed_time 0.000000
+Index 3: TID 7, elapsed_time 0.000000
+Index 4: TID 2, elapsed_time 0.100000
+Scheduler: Popped off thread with TID 3
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 4, elapsed_time 0.000000
+Index 1: TID 5, elapsed_time 0.000000
+Index 2: TID 6, elapsed_time 0.000000
+Index 3: TID 7, elapsed_time 0.000000
+Index 4: TID 2, elapsed_time 0.100000
+Thread 3 starting
+Made it back to external calculate
+Added thread 3 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 5 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Index 0: TID 5, elapsed_time 0.000000
+Index 1: TID 7, elapsed_time 0.000000
+Index 2: TID 6, elapsed_time 0.000000
+Index 3: TID 2, elapsed_time 0.100000
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 5, elapsed_time 0.000000
+Index 1: TID 7, elapsed_time 0.000000
+Index 2: TID 6, elapsed_time 0.000000
+Index 3: TID 2, elapsed_time 0.100000
+Thread 4 starting
+Made it back to external calculate
+Added thread 4 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 4 items in the heap
+Removed thread 5 from priority queue
+Heap contents:
+Index 0: TID 6, elapsed_time 0.000000
+Index 1: TID 7, elapsed_time 0.000000
+Index 2: TID 2, elapsed_time 0.100000
+Scheduler: Popped off thread with TID 5
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 6, elapsed_time 0.000000
+Index 1: TID 7, elapsed_time 0.000000
+Index 2: TID 2, elapsed_time 0.100000
+Thread 5 starting
+Made it back to external calculate
+Added thread 5 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 3 items in the heap
+Removed thread 6 from priority queue
+Heap contents:
+Index 0: TID 7, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.100000
+Scheduler: Popped off thread with TID 6
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 7, elapsed_time 0.000000
+Index 1: TID 2, elapsed_time 0.100000
+Thread 6 starting
+Made it back to external calculate
+Added thread 6 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 2 items in the heap
+Removed thread 7 from priority queue
+Heap contents:
+Index 0: TID 2, elapsed_time 0.100000
+Scheduler: Popped off thread with TID 7
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 2, elapsed_time 0.100000
+Thread 7 starting
+Made it back to external calculate
+Added thread 7 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 2 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 2
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Removed thread 3 from blocked queue
+Added thread 3 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Removed thread 4 from blocked queue
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Removed thread 5 from blocked queue
+Added thread 5 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Index 2: TID 5, elapsed_time 0.000000
+Removed thread 6 from blocked queue
+Added thread 6 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Index 2: TID 5, elapsed_time 0.000000
+Index 3: TID 6, elapsed_time 0.000000
+Removed thread 7 from blocked queue
+Added thread 7 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Index 2: TID 5, elapsed_time 0.000000
+Index 3: TID 6, elapsed_time 0.000000
+Index 4: TID 7, elapsed_time 0.000000
+Signal handler: Interrupting thread 2
+Thread 2 has run for 0.200000 seconds
+Added thread 2 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.000000
+Index 2: TID 5, elapsed_time 0.000000
+Index 3: TID 6, elapsed_time 0.000000
+Index 4: TID 7, elapsed_time 0.000000
+Index 5: TID 2, elapsed_time 0.200000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 6 items in the heap
+Removed thread 3 from priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.000000
+Index 1: TID 6, elapsed_time 0.000000
+Index 2: TID 5, elapsed_time 0.000000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 7, elapsed_time 0.000000
+Scheduler: Popped off thread with TID 3
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 4, elapsed_time 0.000000
+Index 1: TID 6, elapsed_time 0.000000
+Index 2: TID 5, elapsed_time 0.000000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 7, elapsed_time 0.000000
+Signal handler: Interrupting thread 3
+Thread 3 has run for 0.100000 seconds
+Added thread 3 to priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.000000
+Index 1: TID 6, elapsed_time 0.000000
+Index 2: TID 5, elapsed_time 0.000000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 7, elapsed_time 0.000000
+Index 5: TID 3, elapsed_time 0.100000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 6 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Index 0: TID 5, elapsed_time 0.000000
+Index 1: TID 6, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.100000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 7, elapsed_time 0.000000
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 5, elapsed_time 0.000000
+Index 1: TID 6, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.100000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 7, elapsed_time 0.000000
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.100000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 5, elapsed_time 0.000000
+Index 1: TID 6, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.100000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 7, elapsed_time 0.000000
+Index 5: TID 4, elapsed_time 0.100000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 6 items in the heap
+Removed thread 5 from priority queue
+Heap contents:
+Index 0: TID 6, elapsed_time 0.000000
+Index 1: TID 7, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.100000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 4, elapsed_time 0.100000
+Scheduler: Popped off thread with TID 5
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 6, elapsed_time 0.000000
+Index 1: TID 7, elapsed_time 0.000000
+Index 2: TID 3, elapsed_time 0.100000
+Index 3: TID 2, elapsed_time 0.200000
+Index 4: TID 4, elapsed_time 0.100000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 5 items in the heap
+Removed thread 6 from priority queue
+Heap contents:
+Index 0: TID 7, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.100000
+Index 2: TID 3, elapsed_time 0.100000
+Index 3: TID 2, elapsed_time 0.200000
+Scheduler: Popped off thread with TID 6
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 7, elapsed_time 0.000000
+Index 1: TID 4, elapsed_time 0.100000
+Index 2: TID 3, elapsed_time 0.100000
+Index 3: TID 2, elapsed_time 0.200000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 4 items in the heap
+Removed thread 7 from priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.100000
+Index 1: TID 4, elapsed_time 0.100000
+Index 2: TID 2, elapsed_time 0.200000
+Scheduler: Popped off thread with TID 7
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 3, elapsed_time 0.100000
+Index 1: TID 4, elapsed_time 0.100000
+Index 2: TID 2, elapsed_time 0.200000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 3 items in the heap
+Removed thread 3 from priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.100000
+Index 1: TID 2, elapsed_time 0.200000
+Scheduler: Popped off thread with TID 3
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 4, elapsed_time 0.100000
+Index 1: TID 2, elapsed_time 0.200000
+Added thread 3 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 2 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Index 0: TID 2, elapsed_time 0.200000
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 2, elapsed_time 0.200000
+Removed thread 3 from blocked queue
+Added thread 3 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.100000
+Index 1: TID 2, elapsed_time 0.200000
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.200000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 3, elapsed_time 0.100000
+Index 1: TID 2, elapsed_time 0.200000
+Index 2: TID 4, elapsed_time 0.200000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 3 items in the heap
+Removed thread 3 from priority queue
+Heap contents:
+Index 0: TID 2, elapsed_time 0.200000
+Index 1: TID 4, elapsed_time 0.200000
+Scheduler: Popped off thread with TID 3
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 2, elapsed_time 0.200000
+Index 1: TID 4, elapsed_time 0.200000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 2 items in the heap
+Removed thread 2 from priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.200000
+Scheduler: Popped off thread with TID 2
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 4, elapsed_time 0.200000
+Added thread 2 to blocked queue
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Removed thread 2 from blocked queue
+Added thread 2 to priority queue
+Heap contents:
+Index 0: TID 2, elapsed_time 0.200000
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.300000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 2, elapsed_time 0.200000
+Index 1: TID 4, elapsed_time 0.300000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 2 items in the heap
+Removed thread 2 from priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.300000
+Scheduler: Popped off thread with TID 2
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Index 0: TID 4, elapsed_time 0.300000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.400000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.400000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.500000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.500000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.600000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.600000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.700000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.700000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.800000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.800000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+Signal handler: Interrupting thread 4
+Thread 4 has run for 0.900000 seconds
+Added thread 4 to priority queue
+Heap contents:
+Index 0: TID 4, elapsed_time 0.900000
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 1 items in the heap
+Removed thread 4 from priority queue
+Heap contents:
+Scheduler: Popped off thread with TID 4
+Starting timer
+Made it to sched pdjsd
+Heap contents:
+worker_exit: Thread 4 exiting
+worker_exit: Unblocking threads waiting on thread 4
+Made it to unblock_threads
+Stopping timer
+Scheduler: Starting scheduling
+Scheduler: Currently have 0 items in the heap
+Scheduler: No threads to schedule, exiting
+Scheduler: Finished scheduling
