@@ -298,6 +298,7 @@ tcb *blocked_queue_remove(BlockedQueue *blocked_queue)
 // Unblocks threads waiting in the blocked queue
 int unblock_threads(BlockedQueue *blocked_queue)
 {
+    printf("Made it unblocked threads\n");
     if (blocked_queue == NULL)
     {
         // handle error
@@ -352,7 +353,7 @@ void create_context(ucontext_t *context)
         exit(1);
     }
 
-    context->uc_link = &(scheduler_thread->context);
+    context->uc_link = NULL; 
     context->uc_stack.ss_sp = malloc(STACK_SIZE);
     context->uc_stack.ss_size = STACK_SIZE;
     context->uc_stack.ss_flags = 0;
@@ -551,6 +552,7 @@ void worker_exit(void *value_ptr)
         current_tcb_executing->value_ptr = value_ptr;
     }
     current_tcb_executing->stat = TERMINATED;
+    unblock_threads(current_tcb_executing->queue);
     setcontext(&(scheduler_thread->context));
 }
 
@@ -592,12 +594,15 @@ int worker_join(worker_t thread, void **value_ptr)
     blocked_queue_add(target_thread->queue, current_tcb_executing);
     current_tcb_executing->stat = BLOCKED;
     // free(current_tcb_executing->context.uc_stack.ss_sp);
+    
+
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 
     if (value_ptr != NULL)
     {
         *value_ptr = target_thread->value_ptr;
     }
+
 
     return 0;
 }
@@ -808,7 +813,6 @@ void handle_interrupt(int signum)
     }
     MLFQ_add(current_tcb_executing->current_queue_level, current_tcb_executing);
 #endif
-
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 }
 
