@@ -26,121 +26,105 @@
 #include <string.h>
 
 typedef uint worker_t;
-// enum for tracking thread status
+
+// Enum for tracking thread status
 typedef enum
 {
-	READY,
-	RUNNING,
-	BLOCKED,
-	TERMINATED
+    READY,
+    RUNNING,
+    BLOCKED,
+    TERMINATED
 } thread_status;
 
 /* LL queue for 'blocked' state */
-
-// this might cause an error or a duplicate definition issue but idk for sure
 typedef struct TCB tcb;
-typedef struct
+typedef struct Node
 {
-	tcb *data;
-	struct Node *next, *prev;
+    tcb *data;
+    struct Node *next, *prev;
 } Node;
 
 Node *create_node(tcb *data, Node *prev);
 
 typedef struct
 {
-	Node *front, *rear;
-	uint length;
+    Node *front, *rear;
+    uint length;
 } BlockedQueue;
 
 BlockedQueue *blocked_queue_init();
-
 int blocked_queue_add(BlockedQueue *blocked_queue, tcb *thread);
-
 tcb *blocked_queue_remove(BlockedQueue *blocked_queue);
-
 int unblock_threads(BlockedQueue *blocked_queue);
-
 void free_blocked_queue(BlockedQueue *blocked_queue);
 
 /* Min-PQ for SJF */
-
 #define PQ_START_LEN 100
 #define TIME_QUANTA 100
 #define REFRESH_QUANTA 10000
 
 typedef struct
 {
-	tcb **threads;
-	int length;
-	int capacity;
+    tcb **threads;
+    int length;
+    int capacity;
 } PriorityQueue;
 
-void swap(tcb **a, tcb **b);
-
+void pq_swap(tcb **a, tcb **b);
 void heapify_up(int index);
-
 void heapify_down(int index);
-
 void pq_init();
-
 void pq_expand();
-
 void pq_shrink();
-
 void pq_add(tcb *thread);
-
 tcb *pq_remove();
-
 tcb *pq_peek();
-
+void pq_remove_thread(tcb *thread);
 void free_pq();
+void print_heap();
 
+/* Thread Control Block (TCB) */
 typedef struct TCB
 {
-	/* add important states in a thread control block */
-	// thread Id
-	worker_t thread_id;
-	// thread status
-	thread_status stat;
-	// thread context
-	ucontext_t context;
-	void *(*start_routine)(void *); // Function to execute
-	void *arg;
-	// thread stack
-	char *stack;
-	// thread pritority
-	int priority;
-	// current queue level (wow)
-	int current_queue_level;
-	// add the blocked queue
-	BlockedQueue *queue;
-	// value pointer
-	void *value_ptr;
-	// And more ...
-	double elapsed_time;
-	// time left before needs to be demoted
-	double time_remaining;
+    worker_t thread_id;                // Thread ID
+    thread_status stat;                // Thread status
+    ucontext_t context;                // Thread context
+    void *(*start_routine)(void *);    // Function to execute
+    void *arg;                         // Argument to function
+    char *stack;                       // Thread stack
+    int priority;                      // Thread priority
+    int current_queue_level;           // Current queue level
+    BlockedQueue *queue;               // Blocked queue
+    void *value_ptr;                   // Pointer to return value
+    double elapsed_time;               // Time elapsed
+    double time_remaining;             // Time remaining for MLFQ
 } tcb;
 
+/* Multi-Level Feedback Queue (MLFQ) */
 typedef struct
 {
-	BlockedQueue *high_prio_queue;
-	BlockedQueue *medium_prio_queue;
-	BlockedQueue *default_prio_queue;
-	BlockedQueue *low_prio_queue;
+    BlockedQueue *high_prio_queue;
+    BlockedQueue *medium_prio_queue;
+    BlockedQueue *default_prio_queue;
+    BlockedQueue *low_prio_queue;
 } MLFQ_t;
-/* mutex struct definition */
+
+/* Mutex struct definition */
 typedef struct worker_mutex_t
 {
-	thread_status status;
-	tcb *owner_thread;
-	BlockedQueue *queue;
+    thread_status status;
+    tcb *owner_thread;
+    BlockedQueue *queue;
 } worker_mutex_t;
+
+enum Mutex_Status
+{
+    LOCKED,
+    UNLOCKED,
+};
 
 /* Priority definitions */
 #define NUMPRIO 4
-
 #define HIGH_PRIO 3
 #define MEDIUM_PRIO 2
 #define DEFAULT_PRIO 1
@@ -149,66 +133,64 @@ typedef struct worker_mutex_t
 #define MEDIUM_PRIO_QUANTA 100
 #define DEFAULT_PRIO_QUANTA 200
 #define LOW_PRIO_QUANTA 400
-/* define your data structures here: */
-// Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
-// YOUR CODE HERE
+/* Function Declarations */
 
-/*
-enum Status
-{
-	READY,
-	RUNNING,
-	BLOCKED,
-	TERMINATED,
-};
-*/
-
-enum Mutex_Status
-{
-	LOCKED,
-	UNLOCKED,
-};
-
-/* Function Declarations: */
-
-/* find tcb in runqueue */
-// will need to handle finding a TCB in a multi-level queue
-static tcb *get_tcb(worker_t thread);
-
-/* create a new thread */
+// Worker thread functions
 int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void *), void *arg);
-
-/* give CPU pocession to other user level worker threads voluntarily */
+void worker_exit(void *value_ptr);
+int worker_join(worker_t thread, void **value_ptr);
 int worker_yield();
 
-/* terminate a thread */
-void worker_exit(void *value_ptr);
-
-/* wait for thread termination */
-int worker_join(worker_t thread, void **value_ptr);
-
-/* initial the mutex lock */
-int worker_mutex_init(worker_mutex_t *mutex, const pthread_mutexattr_t
-																								 *mutexattr);
-
-/* aquire the mutex lock */
+// Mutex functions
+int worker_mutex_init(worker_mutex_t *mutex, const pthread_mutexattr_t *mutexattr);
 int worker_mutex_lock(worker_mutex_t *mutex);
-
-/* release the mutex lock */
 int worker_mutex_unlock(worker_mutex_t *mutex);
-
-/* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex);
 
-/* Function to print global statistics. Do not modify this function.*/
-void print_app_stats(void);
-
-static void sched_psjf();
-
-static void sched_mlfq();
-
+// Scheduler functions
+void handle_interrupt(int signum);
+void start_timer();
+void stop_timer();
+double get_time();
 static void schedule();
+static void sched_psjf();
+static void sched_mlfq();
+void create_scheduler_thread();
+void create_main_thread();
+void thread_start();
+tcb *create_new_worker(worker_t *thread, void *(*function)(void *), void *arg);
+static tcb *_find_thread(worker_t thread);
+
+// Priority Queue functions
+void pq_swap(tcb **a, tcb **b);
+void heapify_up(int index);
+void heapify_down(int index);
+void pq_init();
+void pq_expand();
+void pq_shrink();
+void pq_add(tcb *thread);
+tcb *pq_remove();
+tcb *pq_peek();
+void pq_remove_thread(tcb *thread);
+void free_pq();
+void print_heap();
+
+// Blocked Queue functions
+Node *create_node(tcb *data, Node *prev);
+BlockedQueue *blocked_queue_init();
+int blocked_queue_add(BlockedQueue *blocked_queue, tcb *thread);
+tcb *blocked_queue_remove(BlockedQueue *blocked_queue);
+int unblock_threads(BlockedQueue *blocked_queue);
+void free_blocked_queue(BlockedQueue *blocked_queue);
+
+// Utility functions
+void block_timer_signal(sigset_t *old_set);
+void unblock_timer_signal(sigset_t *old_set);
+void create_context(ucontext_t *context);
+
+// Print statistics
+void print_app_stats(void);
 
 #ifdef USE_WORKERS
 #define pthread_t worker_t
@@ -223,4 +205,4 @@ static void schedule();
 #define pthread_setschedprio worker_setschedprio
 #endif
 
-#endif
+#endif // WORKER_T_H

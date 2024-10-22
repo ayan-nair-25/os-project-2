@@ -28,30 +28,6 @@ double elapsed_time_since_refresh = 0;
 static PriorityQueue *heap;
 static MLFQ_t *mlfq;
 
-/* Function Declarations */
-void handle_interrupt(int signum);
-void setup_timer_sjf();
-static void sched_psjf();
-static void sched_mlfq();
-static void schedule();
-void start_timer();
-double get_time();
-void stop_timer();
-void create_context(ucontext_t *context);
-void create_scheduler_thread();
-void create_main_thread();
-tcb *create_new_worker(worker_t *thread, void *(*function)(void *), void *arg);
-void block_timer_signal(sigset_t *old_set);
-void unblock_timer_signal(sigset_t *old_set);
-static tcb *_find_thread(worker_t thread);
-void thread_start();
-void MLFQ_init();
-int MLFQ_add(int priority_level, tcb *thread);
-tcb *MLFQ_remove(int priority_level);
-int get_time_quantum(int priority_level);
-void demote_thread(tcb *thread);
-void refresh_all_queues();
-
 /* Priority Queue Functions */
 
 void pq_swap(tcb **a, tcb **b)
@@ -66,7 +42,7 @@ void print_heap()
     printf("Heap contents:\n");
     for (size_t i = 0; i < heap->length; i++)
     {
-        printf("Index %zu: TID %lu, elapsed_time %f\n", i, heap->threads[i]->thread_id, heap->threads[i]->elapsed_time);
+        printf("Index %zu: TID %u, elapsed_time %f\n", i, heap->threads[i]->thread_id, heap->threads[i]->elapsed_time);
     }
 }
 
@@ -148,7 +124,7 @@ void pq_add(tcb *thread)
     }
     heap->threads[heap->length++] = thread;
     heapify_up(heap->length - 1);
-    printf("Added thread %lu to priority queue\n", thread->thread_id);
+    printf("Added thread %u to priority queue\n", thread->thread_id);
     print_heap();
 }
 
@@ -165,7 +141,7 @@ tcb *pq_remove()
         pq_shrink();
     }
     heapify_down(0);
-    printf("Removed thread %lu from priority queue\n", thread->thread_id);
+    printf("Removed thread %u from priority queue\n", thread->thread_id);
     print_heap();
     return thread;
 }
@@ -262,7 +238,7 @@ int blocked_queue_add(BlockedQueue *blocked_queue, tcb *thread)
     }
 
     blocked_queue->length++;
-    printf("Added thread %ld to blocked queue\n", thread->thread_id);
+    printf("Added thread %d to blocked queue\n", thread->thread_id);
     return 0;
 }
 
@@ -288,7 +264,7 @@ tcb *blocked_queue_remove(BlockedQueue *blocked_queue)
         free(temp);
         blocked_queue->length--;
     }
-    printf("Removed thread %ld from blocked queue\n", ret->thread_id);
+    printf("Removed thread %d from blocked queue\n", ret->thread_id);
     return ret;
 }
 
@@ -351,7 +327,7 @@ void create_context(ucontext_t *context)
     // check that the malloc worked
     if (context->uc_stack.ss_sp == NULL)
     {
-        printf("allocation of %d bytes failed for context\n", STACK_SIZE);
+        printf("allocation of %ld bytes failed for context\n", STACK_SIZE);
         exit(1);
     }
 }
@@ -397,7 +373,7 @@ void create_main_thread()
         main_thread->time_remaining = 0;
         stored_main_thread = main_thread;
         current_tcb_executing = main_thread;
-        printf("Main thread created with TID %ld\n", main_thread->thread_id);
+        printf("Main thread created with TID %d\n", main_thread->thread_id);
     }
 }
 
@@ -405,7 +381,7 @@ void create_main_thread()
 void thread_start()
 {
     // Call the actual thread function
-    printf("Thread %ld starting\n", current_tcb_executing->thread_id);
+    printf("Thread %d starting\n", current_tcb_executing->thread_id);
     void *result = current_tcb_executing->start_routine(current_tcb_executing->arg);
     // When the thread function returns, call worker_exit
     worker_exit(result);
@@ -436,7 +412,7 @@ tcb *create_new_worker(worker_t *thread, void *(*function)(void *), void *arg)
     worker_tcb->time_remaining = 0;
     worker_tcb->value_ptr = NULL;
 
-    printf("Created new thread with TID %ld\n", worker_tcb->thread_id);
+    printf("Created new thread with TID %d\n", worker_tcb->thread_id);
     return worker_tcb;
 }
 
@@ -489,7 +465,7 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
 /* Worker Exit */
 void worker_exit(void *value_ptr)
 {
-    printf("Thread %ld exiting\n", current_tcb_executing->thread_id);
+    printf("Thread %d exiting\n", current_tcb_executing->thread_id);
     if (value_ptr != NULL)
     {
         // store result of thread in the value pointer
@@ -512,11 +488,11 @@ void worker_exit(void *value_ptr)
 /* Worker Join */
 int worker_join(worker_t thread, void **value_ptr)
 {
-    printf("worker_join: Main thread attempting to join TID %lu\n", thread);
+    printf("worker_join: Main thread attempting to join TID %u\n", thread);
     tcb *target_thread = _find_thread(thread);
     if (target_thread == NULL)
     {
-        printf("worker_join: Target thread TID %lu not found\n", thread);
+        printf("worker_join: Target thread TID %u not found\n", thread);
         if (value_ptr != NULL)
         {
             *value_ptr = NULL;
@@ -524,7 +500,7 @@ int worker_join(worker_t thread, void **value_ptr)
         return 0;
     }
 
-    printf("worker_join: Target thread TID %lu found with status %d\n", thread, target_thread->stat);
+    printf("worker_join: Target thread TID %u found with status %d\n", thread, target_thread->stat);
 
     if (target_thread->stat == TERMINATED)
     {
@@ -539,7 +515,7 @@ int worker_join(worker_t thread, void **value_ptr)
     pq_remove_thread(current_tcb_executing);
 
     // Block current thread until target thread terminates
-    printf("worker_join: Blocking main thread to wait for TID %lu\n", thread);
+    printf("worker_join: Blocking main thread to wait for TID %u\n", thread);
     blocked_queue_add(target_thread->queue, current_tcb_executing);
     current_tcb_executing->stat = BLOCKED;
 
@@ -595,10 +571,10 @@ static void schedule()
 /* Handle Interrupt */
 void handle_interrupt(int signum)
 {
-    printf("Signal handler: Interrupting thread %ld\n", current_tcb_executing->thread_id);
+    printf("Signal handler: Interrupting thread %d\n", current_tcb_executing->thread_id);
 
     current_tcb_executing->elapsed_time += (TIME_QUANTA / 1000.0);
-    printf("Thread %ld has run for %f seconds\n", current_tcb_executing->thread_id, current_tcb_executing->elapsed_time);
+    printf("Thread %d has run for %f seconds\n", current_tcb_executing->thread_id, current_tcb_executing->elapsed_time);
     current_tcb_executing->stat = READY;
 
 #ifndef MLFQ
@@ -678,7 +654,7 @@ static void sched_psjf()
 {
     while (1)
     {
-        printf("Scheduler: Currently have %lu items in the heap\n", heap->length);
+        printf("Scheduler: Currently have %u items in the heap\n", heap->length);
         if (heap->length == 0)
         {
             printf("Scheduler: No threads to schedule, exiting\n");
@@ -686,7 +662,7 @@ static void sched_psjf()
         }
 
         tcb *thread = pq_remove();
-        printf("Scheduler: Popped off thread with TID %lu\n", thread->thread_id);
+        printf("Scheduler: Popped off thread with TID %u\n", thread->thread_id);
         current_tcb_executing = thread;
 
         current_tcb_executing->stat = RUNNING;
@@ -704,7 +680,193 @@ static void sched_psjf()
     }
 }
 
-/* The rest of the code remains the same, including MLFQ functions if needed */
+/* Preemptive MLFQ scheduling algorithm */
+static void sched_mlfq()
+{
+    sigset_t old_set;
+    block_timer_signal(&old_set);
+
+    if (elapsed_time_since_refresh >= REFRESH_QUANTA)
+    {
+        refresh_all_queues();
+        elapsed_time_since_refresh = 0;
+    }
+
+    tcb *next_thread = NULL;
+    if (mlfq->high_prio_queue->length > 0)
+    {
+        next_thread = blocked_queue_remove(mlfq->high_prio_queue);
+    }
+    else if (mlfq->medium_prio_queue->length > 0)
+    {
+        next_thread = blocked_queue_remove(mlfq->medium_prio_queue);
+    }
+    else if (mlfq->default_prio_queue->length > 0)
+    {
+        next_thread = blocked_queue_remove(mlfq->default_prio_queue);
+    }
+    else if (mlfq->low_prio_queue->length > 0)
+    {
+        next_thread = blocked_queue_remove(mlfq->low_prio_queue);
+    }
+
+    if (next_thread != NULL)
+    {
+        current_tcb_executing = next_thread;
+        current_tcb_executing->stat = RUNNING;
+
+        // Set time_remaining if not already set
+        if (current_tcb_executing->time_remaining <= 0)
+        {
+            current_tcb_executing->time_remaining = get_time_quantum(current_tcb_executing->current_queue_level);
+        }
+
+        start_timer();
+        setcontext(&(current_tcb_executing->context));
+
+        unblock_timer_signal(&old_set);
+        sched_mlfq();
+    }
+    else
+    {
+        // No more threads to schedule; return control
+        unblock_timer_signal(&old_set);
+        return;
+    }
+}
+
+void MLFQ_init()
+{
+    mlfq = (MLFQ_t *)malloc(sizeof(MLFQ_t));
+
+    if (mlfq == NULL)
+    {
+        perror("MLFQ failed to initialize");
+        exit(1);
+    }
+
+    mlfq->high_prio_queue = blocked_queue_init();
+    mlfq->medium_prio_queue = blocked_queue_init();
+    mlfq->default_prio_queue = blocked_queue_init();
+    mlfq->low_prio_queue = blocked_queue_init();
+
+    if (
+        mlfq->high_prio_queue == NULL ||
+        mlfq->medium_prio_queue == NULL ||
+        mlfq->default_prio_queue == NULL ||
+        mlfq->low_prio_queue == NULL)
+    {
+        perror("MLFQ queues failed to initialize");
+        exit(1);
+    }
+}
+
+int MLFQ_add(int priority_level, tcb *thread)
+{
+    int res = -1;
+    switch (priority_level)
+    {
+    case HIGH_PRIO:
+        res = blocked_queue_add(mlfq->high_prio_queue, thread);
+        break;
+    case MEDIUM_PRIO:
+        res = blocked_queue_add(mlfq->medium_prio_queue, thread);
+        break;
+    case DEFAULT_PRIO:
+        res = blocked_queue_add(mlfq->default_prio_queue, thread);
+        break;
+    case LOW_PRIO:
+        res = blocked_queue_add(mlfq->low_prio_queue, thread);
+        break;
+    default:
+        res = blocked_queue_add(mlfq->default_prio_queue, thread);
+        break;
+    }
+    return res;
+}
+
+tcb *MLFQ_remove(int priority_level)
+{
+    tcb *res = NULL;
+    switch (priority_level)
+    {
+    case HIGH_PRIO:
+        res = blocked_queue_remove(mlfq->high_prio_queue);
+        break;
+    case MEDIUM_PRIO:
+        res = blocked_queue_remove(mlfq->medium_prio_queue);
+        break;
+    case DEFAULT_PRIO:
+        res = blocked_queue_remove(mlfq->default_prio_queue);
+        break;
+    case LOW_PRIO:
+        res = blocked_queue_remove(mlfq->low_prio_queue);
+        break;
+    default:
+        res = blocked_queue_remove(mlfq->default_prio_queue);
+        break;
+    }
+    return res;
+}
+
+int get_time_quantum(int priority_level)
+{
+    // still need to define these macros
+    switch (priority_level)
+    {
+    case HIGH_PRIO:
+        return HIGH_PRIO_QUANTA;
+    case MEDIUM_PRIO:
+        return MEDIUM_PRIO_QUANTA;
+    case DEFAULT_PRIO:
+        return DEFAULT_PRIO_QUANTA;
+    case LOW_PRIO:
+        return LOW_PRIO_QUANTA;
+    default:
+        return DEFAULT_PRIO_QUANTA;
+    }
+}
+
+void demote_thread(tcb *thread)
+{
+    if (thread->current_queue_level == LOW_PRIO)
+    {
+        thread->time_remaining = get_time_quantum(LOW_PRIO);
+        return;
+    }
+
+    int old_level = thread->current_queue_level;
+    if (thread->current_queue_level == HIGH_PRIO)
+    {
+        thread->current_queue_level = MEDIUM_PRIO;
+    }
+    else if (thread->current_queue_level == MEDIUM_PRIO)
+    {
+        thread->current_queue_level = DEFAULT_PRIO;
+    }
+    else if (thread->current_queue_level == DEFAULT_PRIO)
+    {
+        thread->current_queue_level = LOW_PRIO;
+    }
+
+    thread->time_remaining = get_time_quantum(thread->current_queue_level);
+}
+
+void refresh_all_queues()
+{
+    BlockedQueue *queues[] = {mlfq->medium_prio_queue, mlfq->default_prio_queue, mlfq->low_prio_queue};
+    for (int i = 0; i < 3; i++)
+    {
+        BlockedQueue *q = queues[i];
+        while (q->length > 0)
+        {
+            tcb *thread = blocked_queue_remove(q);
+            thread->current_queue_level = HIGH_PRIO;
+            thread->time_remaining = get_time_quantum(HIGH_PRIO);
+            blocked_queue_add(mlfq->high_prio_queue, thread);
+        }
+    }
+}
 
 void print_app_stats(void)
 {
