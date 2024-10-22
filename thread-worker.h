@@ -105,6 +105,8 @@ typedef struct TCB
 	thread_status stat;
 	// thread context
 	ucontext_t context;
+	void *(*start_routine)(void *); // Function to execute
+	void *arg;
 	// thread stack
 	char *stack;
 	// thread pritority
