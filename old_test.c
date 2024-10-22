@@ -81,5 +81,11 @@ int main() {
 	printf("creating thread 4 for hello4...\n");
 	int res4 = worker_create(threadnum4, NULL, (void *) &hello4, NULL);
 
+
+	worker_join(*threadnum1, NULL);
+	worker_join(*threadnum2, NULL);
+	worker_join(*threadnum3, NULL);
+	worker_join(*threadnum4, NULL);
+
 	return 0;
 }

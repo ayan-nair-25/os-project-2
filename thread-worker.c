@@ -360,12 +360,14 @@ int worker_create(worker_t *thread, pthread_attr_t *attr, void *(*function)(void
     // only initialize the scheduler context on the first call
     // also init the main context
 
+	/*
     if (stored_main_thread != NULL) 
     {
 	    stored_main_thread->elapsed_time += (TIME_QUANTA / 1000.0);
 	    printf("readding main thread with time quanta %f\n", stored_main_thread->elapsed_time);
 	    pq_add(stored_main_thread);
     }
+    */
 	
     if (scheduler_thread == NULL)
     {
@@ -514,6 +516,7 @@ int worker_join(worker_t thread, void **value_ptr)
 
     blocked_queue_add(target_thread->queue, current_tcb_executing);
     current_tcb_executing->stat = BLOCKED;
+    pq_remove();
 
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 
@@ -765,17 +768,17 @@ static void sched_psjf()
     printf("currently have %d items on the heap\n", heap->length);
     // first pop from the heap
     // printf("removed from heap\n");
-    if (heap->length == 0)
-    {
-    	    printf("going to main\n");
-	    current_tcb_executing = stored_main_thread;
-    }
-    else 
-    {
-	    tcb *thread = pq_remove();
-	    current_tcb_executing = thread;
-	    printf("popped off thread with tid %d\n", thread->thread_id);
-    }
+   // if (heap->length == 0)
+  //  {
+ //   	    printf("going to main\n");
+//	    current_tcb_executing = stored_main_thread;
+    //}
+    //else 
+    //{
+    tcb *thread = pq_remove();
+    current_tcb_executing = thread;
+    printf("popped off thread with tid %d\n", thread->thread_id);
+    //}
     // printf("stored thread with id %d\n", current_tcb_executing->thread_id);
 
     // do the context switching here so that we can move our context to the wanted function that we want to execute
