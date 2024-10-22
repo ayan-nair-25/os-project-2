@@ -446,14 +446,16 @@ int worker_yield()
 /* terminate a thread */
 void worker_exit(void *value_ptr)
 {
-    if (value_ptr)
+    if (value_ptr != NULL)
     {
         // store result of thread in the value pointer
         current_tcb_executing->value_ptr = value_ptr;
     }
     current_tcb_executing->stat = TERMINATED;
+    printf("freeing...!\n");
     free(current_tcb_executing->context.uc_stack.ss_sp);
 
+    printf("worked!\n");
     setcontext(&(scheduler_thread->context));
 };
 
@@ -602,7 +604,7 @@ int worker_mutex_unlock(worker_mutex_t *mutex)
 /* destroy the mutex */
 int worker_mutex_destroy(worker_mutex_t *mutex)
 {
-    free_queue(mutex->queue);
+    free_blocked_queue(mutex->queue);
     mutex->queue = NULL;
     mutex->owner_thread = NULL;
     return 0;
@@ -675,7 +677,7 @@ void handle_interrupt(int signum)
 #endif
 }
 
-void get_time_elapsed()
+void get_time()
 {
     struct itimerval time;
     // get the time
@@ -737,6 +739,8 @@ static void sched_psjf()
     // YOUR CODE HERE
 
     // we are given a run queue with all of the tcb times on there
+    if (heap->length == 0)
+	    return;
 
     // first pop from the heap
     tcb *thread = pq_remove();
@@ -768,19 +772,19 @@ static void sched_mlfq()
     tcb *next_thread = NULL;
     if (mlfq->high_prio_queue->length > 0)
     {
-        next_thread = queue_remove(mlfq->high_prio_queue);
+        next_thread = blocked_queue_remove(mlfq->high_prio_queue);
     }
     else if (mlfq->medium_prio_queue->length > 0)
     {
-        next_thread = queue_remove(mlfq->medium_prio_queue);
+        next_thread = blocked_queue_remove(mlfq->medium_prio_queue);
     }
     else if (mlfq->default_prio_queue->length > 0)
     {
-        next_thread = queue_remove(mlfq->default_prio_queue);
+        next_thread = blocked_queue_remove(mlfq->default_prio_queue);
     }
     else if (mlfq->low_prio_queue->length > 0)
     {
-        next_thread = queue_remove(mlfq->low_prio_queue);
+        next_thread = blocked_queue_remove(mlfq->low_prio_queue);
     }
 
     if (next_thread != NULL)
@@ -933,10 +937,10 @@ void refresh_all_queues()
         BlockedQueue *q = queues[i];
         while (q->length > 0)
         {
-            tcb *thread = queue_remove(q);
+            tcb *thread = blocked_queue_remove(q);
             thread->current_queue_level = HIGH_PRIO;
             thread->time_remaining = get_time_quantum(HIGH_PRIO);
-            queue_add(mlfq->high_prio_queue, thread);
+            blocked_queue_add(mlfq->high_prio_queue, thread);
         }
     }
 }
