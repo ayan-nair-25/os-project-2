@@ -198,6 +198,22 @@ void free_pq()
 
 #endif // MLFQ
 
+#ifdef MLFQ
+/* This function gets called only for MLFQ scheduling set the worker priority. */
+int worker_setschedprio(worker_t thread, int prio)
+{
+    tcb *target_tcb = _find_thread(thread);
+    if (target_tcb == NULL)
+    {
+        return -1;
+    }
+    target_tcb->priority = prio;
+    target_tcb->current_queue_level = prio;
+    // time remaining?
+    return 0;
+}
+#endif
+
 /* Blocked Queue Functions */
 
 Node *create_node(tcb *data, Node *prev)
@@ -270,7 +286,7 @@ tcb *blocked_queue_remove(BlockedQueue *blocked_queue)
     }
     if (ret == NULL)
     {
-        printf("Blocked queue is empty\n");
+        // printf("Blocked queue is empty\n");
     }
     else
     {
@@ -336,7 +352,7 @@ void create_context(ucontext_t *context)
         exit(1);
     }
 
-    context->uc_link = NULL;
+    context->uc_link = &(scheduler_thread->context);
     context->uc_stack.ss_sp = malloc(STACK_SIZE);
     context->uc_stack.ss_size = STACK_SIZE;
     context->uc_stack.ss_flags = 0;
@@ -530,21 +546,11 @@ int worker_yield()
 /* Worker Exit */
 void worker_exit(void *value_ptr)
 {
-    printf("Thread %d exiting\n", current_tcb_executing->thread_id);
     if (value_ptr != NULL)
     {
-        // Store result of thread in the value pointer
         current_tcb_executing->value_ptr = value_ptr;
     }
     current_tcb_executing->stat = TERMINATED;
-
-    // Wake up any threads waiting on this thread
-    if (current_tcb_executing->queue != NULL)
-    {
-        unblock_threads(current_tcb_executing->queue);
-    }
-
-    // Switch to scheduler
     setcontext(&(scheduler_thread->context));
 }
 
@@ -585,7 +591,7 @@ int worker_join(worker_t thread, void **value_ptr)
     printf("worker_join: Blocking main thread to wait for TID %u\n", thread);
     blocked_queue_add(target_thread->queue, current_tcb_executing);
     current_tcb_executing->stat = BLOCKED;
-
+    // free(current_tcb_executing->context.uc_stack.ss_sp);
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 
     if (value_ptr != NULL)
@@ -659,7 +665,7 @@ int worker_mutex_init(worker_mutex_t *mutex, const pthread_mutexattr_t *mutexatt
 /* Acquire the mutex lock */
 int worker_mutex_lock(worker_mutex_t *mutex)
 {
-    printf("Thread %d attempting to lock mutex\n", current_tcb_executing->thread_id);
+    // printf("Thread %d attempting to lock mutex\n", current_tcb_executing->thread_id);
 
     sigset_t old_set;
     block_timer_signal(&old_set);
@@ -674,7 +680,7 @@ int worker_mutex_lock(worker_mutex_t *mutex)
             __ATOMIC_RELAXED))
     {
         // Failed to acquire mutex, add to waiting queue
-        printf("Mutex is locked, thread %d is blocking\n", current_tcb_executing->thread_id);
+        // printf("Mutex is locked, thread %d is blocking\n", current_tcb_executing->thread_id);
         blocked_queue_add(mutex->queue, current_tcb_executing);
         current_tcb_executing->stat = BLOCKED;
 
@@ -695,7 +701,7 @@ int worker_mutex_lock(worker_mutex_t *mutex)
             __ATOMIC_ACQUIRE,
             __ATOMIC_RELAXED))
         {
-            printf("Mutex is still locked, thread %d is blocking again\n", current_tcb_executing->thread_id);
+            // printf("Mutex is still locked, thread %d is blocking again\n", current_tcb_executing->thread_id);
             unblock_timer_signal(&old_set);
             swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
             block_timer_signal(&old_set);
@@ -704,7 +710,7 @@ int worker_mutex_lock(worker_mutex_t *mutex)
     }
 
     mutex->owner_thread = current_tcb_executing;
-    printf("Mutex locked by thread %d\n", current_tcb_executing->thread_id);
+    // printf("Mutex locked by thread %d\n", current_tcb_executing->thread_id);
 
     unblock_timer_signal(&old_set);
 
@@ -714,7 +720,7 @@ int worker_mutex_lock(worker_mutex_t *mutex)
 /* Release the mutex lock */
 int worker_mutex_unlock(worker_mutex_t *mutex)
 {
-    printf("Thread %d attempting to unlock mutex\n", current_tcb_executing->thread_id);
+    // printf("Thread %d attempting to unlock mutex\n", current_tcb_executing->thread_id);
 
     if (mutex->owner_thread != current_tcb_executing)
     {
@@ -728,12 +734,12 @@ int worker_mutex_unlock(worker_mutex_t *mutex)
     mutex->owner_thread = NULL;
     __atomic_store_n(&(mutex->status), UNLOCKED, __ATOMIC_RELEASE);
 
-    printf("Mutex unlocked by thread %d\n", current_tcb_executing->thread_id);
+    // printf("Mutex unlocked by thread %d\n", current_tcb_executing->thread_id);
 
     tcb *next_thread = blocked_queue_remove(mutex->queue);
     if (next_thread != NULL)
     {
-        printf("Waking up thread %d waiting on mutex\n", next_thread->thread_id);
+        // printf("Waking up thread %d waiting on mutex\n", next_thread->thread_id);
         next_thread->stat = READY;
 #ifndef MLFQ
         pq_add(next_thread);
@@ -883,16 +889,12 @@ static void sched_psjf()
 
         current_tcb_executing->stat = RUNNING;
         start_timer();
+        printf("Made it to sched pdjsd\n");
+
+        print_heap();
         setcontext(&(current_tcb_executing->context));
 
-        // After returning from the thread
-        if (current_tcb_executing->stat == TERMINATED)
-        {
-            // Cleanup
-            free(current_tcb_executing->context.uc_stack.ss_sp);
-            free(current_tcb_executing);
-            current_tcb_executing = NULL;
-        }
+        printf("And here tpoo \n");
     }
 }
 #endif
