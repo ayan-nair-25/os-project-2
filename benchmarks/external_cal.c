@@ -13,20 +13,22 @@
 #define RECORD_SIZE 4194304
 
 /* Global variables */
-pthread_mutex_t   mutex;
+pthread_mutex_t mutex;
 int thread_num;
-int* counter;
+int *counter;
 pthread_t *thread;
 int *mem = NULL;
 int sum = 0;
 int itr = RECORD_SIZE / 16;
 
-void external_calculate(void* arg) {
-	
+void external_calculate(void *arg)
+{
+	printf("Made it back to external calculate\n");
 	int i = 0, j = 0, k = 0;
-	int n = *((int*) arg);
+	int n = *((int *)arg);
 
-	for (k = n; k < RECORD_NUM; k += thread_num) {
+	for (k = n; k < RECORD_NUM; k += thread_num)
+	{
 
 		char a[3];
 		char path[20] = "./record/";
@@ -36,17 +38,20 @@ void external_calculate(void* arg) {
 
 		FILE *f;
 		f = fopen(path, "r");
-		if (!f) {
+		if (!f)
+		{
 			printf("failed to open file %s, please run ./genRecord.sh first\n", path);
 			exit(0);
 		}
 
-		for (i = 0; i < itr; ++i) {
+		for (i = 0; i < itr; ++i)
+		{
 			// read 16B from nth record into memory from mem[n*4]
-			for (j = 0; j < 4; ++j) {
-				fscanf(f, "%d", &mem[k*4 + j]);
+			for (j = 0; j < 4; ++j)
+			{
+				fscanf(f, "%d", &mem[k * 4 + j]);
 				pthread_mutex_lock(&mutex);
-				sum += mem[k*4 + j];
+				sum += mem[k * 4 + j];
 				pthread_mutex_unlock(&mutex);
 			}
 		}
@@ -56,113 +61,129 @@ void external_calculate(void* arg) {
 	pthread_exit(NULL);
 }
 
+void verify()
+{
 
-void verify() {
-	
 	int i = 0, j = 0, k = 0;
 	char a[3];
 	char path[20] = "./record/";
 
-	sum = 0;
+	// sum = 0;
 	memset(mem, 0, RAM_SIZE);
 
-	for (k = 0; k < 10; ++k) {
+	for (k = 0; k < 10; ++k)
+	{
 		strcpy(path, "./record/");
 		sprintf(a, "%d", k);
 		strcat(path, a);
 
 		FILE *f;
 		f = fopen(path, "r");
-		if (!f) {
+		if (!f)
+		{
 			printf("failed to open file %s, please run ./genRecord.sh first\n", path);
 			exit(0);
 		}
 
-		for (i = 0; i < itr; ++i) {
+		for (i = 0; i < itr; ++i)
+		{
 			// read 16B from nth record into memory from mem[n*4]
-			for (j = 0; j < 4; ++j) {
-				fscanf(f, "%d\n", &mem[k*4 + j]);
-				sum += mem[k*4 + j];
+			for (j = 0; j < 4; ++j)
+			{
+				fscanf(f, "%d\n", &mem[k * 4 + j]);
+				sum += mem[k * 4 + j];
 			}
 		}
 		fclose(f);
 	}
 }
 
-
-void sig_handler(int signum) {
+void sig_handler(int signum)
+{
 	printf("%d\n", signum);
 }
 
+int main(int argc, char **argv)
+{
 
-int main(int argc, char **argv) {
-	
 	int i = 0;
 #ifdef MLFQ
-        //We use it only for MLFQ
-        int priority = 0;
+	// We use it only for MLFQ
+	int priority = 0;
 #endif
 
-	if (argc == 1) {
+	if (argc == 1)
+	{
 		thread_num = DEFAULT_THREAD_NUM;
-	} else {
-		if (argv[1] < 1) {
+	}
+	else
+	{
+		if (argv[1] < 1)
+		{
 			printf("enter a valid thread number\n");
 			return 0;
-		} else
+		}
+		else
 			thread_num = atoi(argv[1]);
 	}
 
 	// initialize counter
-	counter = (int*)malloc(thread_num*sizeof(int));
+	counter = (int *)malloc(thread_num * sizeof(int));
 	for (i = 0; i < thread_num; ++i)
+	{
 		counter[i] = i;
-
+	}
 	// initialize pthread_t
-	thread = (pthread_t*)malloc(thread_num*sizeof(pthread_t));
-	mem = (int*)malloc(RAM_SIZE);
+	thread = (pthread_t *)malloc(thread_num * sizeof(pthread_t));
+	mem = (int *)malloc(RAM_SIZE);
 	memset(mem, 0, RAM_SIZE);
 
 	pthread_mutex_init(&mutex, NULL);
 
 	struct timespec start, end;
-        clock_gettime(CLOCK_REALTIME, &start);
- 
-        for (i = 0; i < thread_num; ++i) {
+	clock_gettime(CLOCK_REALTIME, &start);
 
-                pthread_create(&thread[i], NULL, &external_calculate, &counter[i]);
+	for (i = 0; i < thread_num; ++i)
+	{
+
+		pthread_create(&thread[i], NULL, &external_calculate, &counter[i]);
+		printf("%u\n", thread[i]);
 #ifdef MLFQ
-                priority = i % NUMPRIO;
-                pthread_setschedprio(thread[i], priority);
+		priority = i % NUMPRIO;
+		pthread_setschedprio(thread[i], priority);
 #endif
-        }
-	
+	}
+
 	signal(SIGABRT, sig_handler);
 	signal(SIGSEGV, sig_handler);
 
 	for (i = 0; i < thread_num; ++i)
+	{
+		printf("joining in external_cal...\n");
+		// printf("%u\n", thread[i]);
 		pthread_join(thread[i], NULL);
+	}
+	printf("[SUUUUUUUUUUUUUUUUUUUUUUUUUUUUM]%d\n", sum);
 
+	fprintf(stderr, "***************************\n");
 
-        fprintf(stderr, "***************************\n");
+	clock_gettime(CLOCK_REALTIME, &end);
 
-        clock_gettime(CLOCK_REALTIME, &end);
-
-        printf("Total run time: %lu micro-seconds\n",
-               (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
+	printf("Total run time: %lu micro-seconds\n",
+				 (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
 
 	pthread_mutex_destroy(&mutex);
 
 	// feel free to verify your answer here:
 	verify();
-	
+
 	free(mem);
 	free(thread);
 	free(counter);
 
 #ifdef USE_WORKERS
-	fprintf(stderr , "Total sum is: %d\n", sum);
-        print_app_stats();
+	fprintf(stderr, "Total sum is: %d\n", sum);
+	print_app_stats();
 	fprintf(stderr, "***************************\n");
 #endif
 
