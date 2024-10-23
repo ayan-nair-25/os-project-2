@@ -412,7 +412,7 @@ void create_main_thread()
         main_thread->time_remaining = 0;
         main_thread->value_ptr = NULL;
         main_thread->context.uc_link = NULL;
-
+        main_thread->in_queue = 0;
         stored_main_thread = main_thread;
         current_tcb_executing = main_thread;
 
@@ -461,6 +461,7 @@ tcb *create_new_worker(worker_t *thread, void *(*function)(void *), void *arg)
     worker_tcb->current_queue_level = DEFAULT_PRIO;
     worker_tcb->time_remaining = 0;
     worker_tcb->value_ptr = NULL;
+    worker_tcb->in_queue = 0;
 
     // Add new thread to the global thread list
     ThreadNode *new_node = malloc(sizeof(ThreadNode));
