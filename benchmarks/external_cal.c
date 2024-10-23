@@ -5,7 +5,6 @@
 #include <signal.h>
 
 #include <pthread.h>
-// #define USE_WORKERS
 #include "../thread-worker.h"
 
 #define DEFAULT_THREAD_NUM 2
