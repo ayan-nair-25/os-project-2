@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdatomic.h>
 
 typedef uint worker_t;
 
@@ -35,6 +36,12 @@ typedef enum
     BLOCKED,
     TERMINATED
 } thread_status;
+
+typedef enum
+{
+    MUTEX_UNLOCKED,
+    MUTEX_LOCKED,
+} mutex_status_t;
 
 /* LL queue for 'blocked' state */
 typedef struct TCB tcb;
@@ -86,18 +93,18 @@ void print_heap();
 /* Thread Control Block (TCB) */
 typedef struct TCB
 {
-    worker_t thread_id;                // Thread ID
-    thread_status stat;                // Thread status
-    ucontext_t context;                // Thread context
-    void *(*start_routine)(void *);    // Function to execute
-    void *arg;                         // Argument to function
-    char *stack;                       // Thread stack
-    int priority;                      // Thread priority
-    int current_queue_level;           // Current queue level
-    BlockedQueue *queue;               // Blocked queue
-    void *value_ptr;                   // Pointer to return value
-    double elapsed_time;               // Time elapsed
-    double time_remaining;             // Time remaining for MLFQ
+    worker_t thread_id;             // Thread ID
+    thread_status stat;             // Thread status
+    ucontext_t context;             // Thread context
+    void *(*start_routine)(void *); // Function to execute
+    void *arg;                      // Argument to function
+    char *stack;                    // Thread stack
+    int priority;                   // Thread priority
+    int current_queue_level;        // Current queue level
+    BlockedQueue *queue;            // Blocked queue
+    void *value_ptr;                // Pointer to return value
+    double elapsed_time;            // Time elapsed
+    double time_remaining;          // Time remaining for MLFQ
 } tcb;
 
 /* Multi-Level Feedback Queue (MLFQ) */
@@ -112,9 +119,11 @@ typedef struct
 /* Mutex struct definition */
 typedef struct worker_mutex_t
 {
-    thread_status status;
-    tcb *owner_thread;
+
+    mutex_status_t status;
+    _Atomic(tcb *) owner_thread;
     BlockedQueue *queue;
+
 } worker_mutex_t;
 
 enum Mutex_Status
