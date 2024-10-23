@@ -24,7 +24,7 @@ int itr = RECORD_SIZE / 16;
 
 void external_calculate(void *arg)
 {
-	printf("Made it back to external calculate\n");
+	// printf("Made it back to external calculate\n");
 	int i = 0, j = 0, k = 0;
 	int n = *((int *)arg);
 
@@ -148,7 +148,6 @@ int main(int argc, char **argv)
 	{
 
 		pthread_create(&thread[i], NULL, &external_calculate, &counter[i]);
-		printf("%u\n", thread[i]);
 #ifdef MLFQ
 		priority = i % NUMPRIO;
 		pthread_setschedprio(thread[i], priority);
@@ -160,8 +159,6 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < thread_num; ++i)
 	{
-		printf("joining in external_cal...\n");
-		// printf("%u\n", thread[i]);
 		pthread_join(thread[i], NULL);
 	}
 

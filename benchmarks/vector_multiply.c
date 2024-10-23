@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
                (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
 
 	pthread_mutex_destroy(&mutex);
+	printf("Our sum is: %d\n", sum);
 	verify();
 
 	// Free memory on Heap

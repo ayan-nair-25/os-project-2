@@ -121,6 +121,7 @@ int main(int argc, char **argv) {
 	pthread_mutex_destroy(&mutex);
 
 	// feel free to verify your answer here:
+	printf("Our sum is %d\n", sum);
 	verify();
 	// Free memory on Heap
 	free(thread);
