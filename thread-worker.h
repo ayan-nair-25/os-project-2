@@ -105,6 +105,7 @@ typedef struct TCB
     void *value_ptr;                // Pointer to return value
     double elapsed_time;            // Time elapsed
     double time_remaining;          // Time remaining for MLFQ
+    int in_queue;                   // Is thread in queue
 } tcb;
 
 /* Multi-Level Feedback Queue (MLFQ) */
