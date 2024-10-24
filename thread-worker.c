@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 #include <sys/time.h>
 #include <ucontext.h>
 #include <unistd.h>
@@ -386,6 +387,20 @@ void create_scheduler_thread()
     // Create our context to start at the scheduler
     makecontext(&scheduler_thread->context, (void (*)(void))schedule, 0);
 
+    scheduler_thread->stat = READY;
+    scheduler_thread->start_routine = NULL;
+    scheduler_thread->arg = NULL;
+    scheduler_thread->stack = NULL;
+    scheduler_thread->priority = NULL;
+    scheduler_thread->current_queue_level = NULL;
+    scheduler_thread->queue = NULL;
+    scheduler_thread->value_ptr = NULL;
+    scheduler_thread->elapsed_time = 0;
+    scheduler_thread->time_remaining = 0;
+    scheduler_thread->in_queue = 0;
+    scheduler_thread->start_time = 0;
+    scheduler_thread->end_time = 0;
+
     // //printf("Scheduler thread created\n");
 }
 
@@ -413,6 +428,10 @@ void create_main_thread()
         main_thread->value_ptr = NULL;
         main_thread->context.uc_link = NULL;
         main_thread->in_queue = 0;
+
+	main_thread->start_time = 0;
+	main_thread->end_time = 0;
+
         stored_main_thread = main_thread;
         current_tcb_executing = main_thread;
 
@@ -454,6 +473,7 @@ tcb *create_new_worker(worker_t *thread, void *(*function)(void *), void *arg)
     makecontext(&worker_tcb->context, (void (*)(void))thread_start, 0);
 
     // Initialize other TCB fields
+    worker_tcb->arg = arg;
     worker_tcb->queue = blocked_queue_init();
     worker_tcb->stat = READY;
     worker_tcb->elapsed_time = 0;
@@ -462,6 +482,8 @@ tcb *create_new_worker(worker_t *thread, void *(*function)(void *), void *arg)
     worker_tcb->time_remaining = 0;
     worker_tcb->value_ptr = NULL;
     worker_tcb->in_queue = 0;
+    worker_tcb->start_time = 0;
+    worker_tcb->end_time = 0;
 
     // Add new thread to the global thread list
     ThreadNode *new_node = malloc(sizeof(ThreadNode));
@@ -539,7 +561,7 @@ int worker_yield()
     }
     MLFQ_add(current_tcb_executing->priority, current_tcb_executing);
 #endif
-
+    tot_cntx_switches += 1;
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
     return 0;
 }
@@ -573,6 +595,7 @@ void worker_exit(void *value_ptr)
     }
 
     // Switch to scheduler context
+    tot_cntx_switches += 1;
     setcontext(&scheduler_thread->context);
 }
 
@@ -618,6 +641,8 @@ int worker_join(worker_t thread, void **value_ptr)
     blocked_queue_add(target_thread->queue, current_tcb_executing);
     current_tcb_executing->stat = BLOCKED;
 
+
+    tot_cntx_switches += 1;
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 
     // After being unblocked, check if the target thread has terminated
@@ -628,6 +653,8 @@ int worker_join(worker_t thread, void **value_ptr)
 
     // Remove the thread from the global thread list and free its resources
     remove_thread_from_list(thread);
+
+    // readd all stuff from the blocked queue
     free(target_thread->context.uc_stack.ss_sp);
     free(target_thread);
 
@@ -713,6 +740,8 @@ int worker_mutex_lock(worker_mutex_t *mutex)
         unblock_timer_signal(&old_set);
 
         // Swap to scheduler
+
+	tot_cntx_switches += 1;
         swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 
         block_timer_signal(&old_set);
@@ -852,6 +881,8 @@ void handle_interrupt(int signum)
 #endif
 
     // Swap context to scheduler
+
+    tot_cntx_switches += 1;
     swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
 }
 
@@ -934,6 +965,8 @@ static void sched_psjf()
         start_timer();
 
         // Switch to thread context
+
+        tot_cntx_switches += 1;
         swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
     }
 }
@@ -992,6 +1025,8 @@ static void sched_mlfq()
             unblock_timer_signal(&old_set);
             start_timer();
             // printf("sched_mlfq: swapping to thread %d\n", current_tcb_executing->thread_id);
+
+            tot_cntx_switches += 1;
             swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
             elapsed_time_since_refresh += TIME_QUANTA;
         }

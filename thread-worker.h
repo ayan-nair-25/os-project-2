@@ -106,6 +106,8 @@ typedef struct TCB
     double elapsed_time;            // Time elapsed
     double time_remaining;          // Time remaining for MLFQ
     int in_queue;                   // Is thread in queue
+    double start_time;		    // Time at which process arrives in thread
+    double end_time;		    // time at which thread terminates (set in worker_exit)
 } tcb;
 
 /* Multi-Level Feedback Queue (MLFQ) */
