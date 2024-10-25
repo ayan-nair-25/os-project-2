@@ -353,7 +353,7 @@ void free_blocked_queue(BlockedQueue *blocked_queue)
 }
 
 /* Create a new thread context */
-void create_context(ucontext_t *context)
+void create_context(ucontext_t * context)
 {
     if (getcontext(context) == -1)
     {
@@ -382,10 +382,13 @@ void create_scheduler_thread()
     scheduler_thread = malloc(sizeof(tcb));
     scheduler_thread->thread_id = 0;
 
-    create_context(&scheduler_thread->context);
+    // Allocate the context
+    scheduler_thread->context = malloc(sizeof(ucontext_t));
+
+    create_context(scheduler_thread->context);
 
     // Create our context to start at the scheduler
-    makecontext(&scheduler_thread->context, (void (*)(void))schedule, 0);
+    makecontext(scheduler_thread->context, (void (*)(void))schedule, 0);
 
     scheduler_thread->stat = READY;
     scheduler_thread->start_routine = NULL;
@@ -409,9 +412,10 @@ void create_main_thread()
 {
     tcb *main_thread = malloc(sizeof(tcb));
     main_thread->thread_id = 1;
+    main_thread->context = malloc(sizeof(ucontext_t));
 
     // Get the main context and set it
-    if (getcontext(&main_thread->context) == -1)
+    if (getcontext(main_thread->context) == -1)
     {
         perror("getcontext");
         exit(1);
@@ -426,7 +430,7 @@ void create_main_thread()
         main_thread->current_queue_level = DEFAULT_PRIO;
         main_thread->time_remaining = 0;
         main_thread->value_ptr = NULL;
-        main_thread->context.uc_link = NULL;
+        main_thread->context->uc_link = NULL;
         main_thread->in_queue = 0;
 
 	main_thread->start_time = 0;
@@ -455,7 +459,7 @@ void thread_start()
     worker_exit(result);
 
     // Prevent returning
-    setcontext(&scheduler_thread->context);
+    setcontext(scheduler_thread->context);
 }
 
 /* Create a new worker thread */
@@ -468,9 +472,10 @@ tcb *create_new_worker(worker_t *thread, void *(*function)(void *), void *arg)
     worker_tcb->start_routine = function;
     worker_tcb->arg = arg;
 
-    create_context(&worker_tcb->context);
+    worker_tcb->context = malloc(sizeof(ucontext_t));
+    create_context(worker_tcb->context);
 
-    makecontext(&worker_tcb->context, (void (*)(void))thread_start, 0);
+    makecontext(worker_tcb->context, (void (*)(void))thread_start, 0);
 
     // Initialize other TCB fields
     worker_tcb->arg = arg;
@@ -562,7 +567,7 @@ int worker_yield()
     MLFQ_add(current_tcb_executing->priority, current_tcb_executing);
 #endif
     tot_cntx_switches += 1;
-    swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
+    swapcontext(current_tcb_executing->context, scheduler_thread->context);
     return 0;
 }
 
@@ -589,14 +594,15 @@ void worker_exit(void *value_ptr)
         // //printf("worker_exit: No threads waiting on thread %d. Cleaning up resources.\n", current_tcb_executing->thread_id);
 
         // Free resources since no thread will join
-        free(current_tcb_executing->context.uc_stack.ss_sp);
+        free(current_tcb_executing->context->uc_stack.ss_sp);
+	free(current_tcb_executing->context);
         remove_thread_from_list(current_tcb_executing->thread_id);
         free(current_tcb_executing);
     }
 
     // Switch to scheduler context
     tot_cntx_switches += 1;
-    setcontext(&scheduler_thread->context);
+    setcontext(scheduler_thread->context);
 }
 
 /* Worker Join */
@@ -624,7 +630,8 @@ int worker_join(worker_t thread, void **value_ptr)
         }
         // Remove the thread from the global thread list and free its resources
         remove_thread_from_list(thread);
-        free(target_thread->context.uc_stack.ss_sp);
+        free(target_thread->context->uc_stack.ss_sp);
+	free(target_thread->context);
         free(target_thread);
         return 0;
     }
@@ -643,7 +650,7 @@ int worker_join(worker_t thread, void **value_ptr)
 
 
     tot_cntx_switches += 1;
-    swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
+    swapcontext(current_tcb_executing->context, scheduler_thread->context);
 
     // After being unblocked, check if the target thread has terminated
     if (value_ptr != NULL)
@@ -655,7 +662,8 @@ int worker_join(worker_t thread, void **value_ptr)
     remove_thread_from_list(thread);
 
     // readd all stuff from the blocked queue
-    free(target_thread->context.uc_stack.ss_sp);
+    free(target_thread->queue);
+    free(target_thread->context->uc_stack.ss_sp);
     free(target_thread);
 
     return 0;
@@ -742,7 +750,7 @@ int worker_mutex_lock(worker_mutex_t *mutex)
         // Swap to scheduler
 
 	tot_cntx_switches += 1;
-        swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
+        swapcontext(current_tcb_executing->context, scheduler_thread->context);
 
         block_timer_signal(&old_set);
 
@@ -844,7 +852,7 @@ static void schedule()
     {
         // //printf("Scheduler: Returning control to main thread\n");
         current_tcb_executing = stored_main_thread; // Set current executing thread to main thread
-        setcontext(&(stored_main_thread->context));
+        setcontext(stored_main_thread->context);
     }
     else
     {
@@ -883,7 +891,7 @@ void handle_interrupt(int signum)
     // Swap context to scheduler
 
     tot_cntx_switches += 1;
-    swapcontext(&(current_tcb_executing->context), &(scheduler_thread->context));
+    swapcontext(current_tcb_executing->context, scheduler_thread->context);
 }
 
 /* Setup Timer */
@@ -967,7 +975,7 @@ static void sched_psjf()
         // Switch to thread context
 
         tot_cntx_switches += 1;
-        swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
+        swapcontext(scheduler_thread->context, current_tcb_executing->context);
     }
 }
 #endif
@@ -1027,7 +1035,7 @@ static void sched_mlfq()
             // printf("sched_mlfq: swapping to thread %d\n", current_tcb_executing->thread_id);
 
             tot_cntx_switches += 1;
-            swapcontext(&(scheduler_thread->context), &(current_tcb_executing->context));
+            swapcontext(scheduler_thread->context, current_tcb_executing->context);
             elapsed_time_since_refresh += TIME_QUANTA;
         }
     }
