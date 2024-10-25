@@ -95,7 +95,7 @@ typedef struct TCB
 {
     worker_t thread_id;             // Thread ID
     thread_status stat;             // Thread status
-    ucontext_t context;             // Thread context
+    ucontext_t * context;             // Thread context
     void *(*start_routine)(void *); // Function to execute
     void *arg;                      // Argument to function
     char *stack;                    // Thread stack
