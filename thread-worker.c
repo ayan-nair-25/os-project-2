@@ -24,11 +24,6 @@ tcb *scheduler_thread = NULL;
 tcb *current_tcb_executing = NULL;
 
 /* Global thread list to keep track of all threads */
-typedef struct ThreadNode
-{
-    tcb *thread_tcb;
-    struct ThreadNode *next;
-} ThreadNode;
 
 ThreadNode *thread_list_head = NULL;
 
@@ -353,7 +348,7 @@ void free_blocked_queue(BlockedQueue *blocked_queue)
 }
 
 /* Create a new thread context */
-void create_context(ucontext_t * context)
+void create_context(ucontext_t *context)
 {
     if (getcontext(context) == -1)
     {
@@ -433,8 +428,8 @@ void create_main_thread()
         main_thread->context->uc_link = NULL;
         main_thread->in_queue = 0;
 
-	main_thread->start_time = 0;
-	main_thread->end_time = 0;
+        main_thread->start_time = 0;
+        main_thread->end_time = 0;
 
         stored_main_thread = main_thread;
         current_tcb_executing = main_thread;
@@ -595,7 +590,7 @@ void worker_exit(void *value_ptr)
 
         // Free resources since no thread will join
         free(current_tcb_executing->context->uc_stack.ss_sp);
-	free(current_tcb_executing->context);
+        free(current_tcb_executing->context);
         remove_thread_from_list(current_tcb_executing->thread_id);
         free(current_tcb_executing);
     }
@@ -631,7 +626,7 @@ int worker_join(worker_t thread, void **value_ptr)
         // Remove the thread from the global thread list and free its resources
         remove_thread_from_list(thread);
         free(target_thread->context->uc_stack.ss_sp);
-	free(target_thread->context);
+        free(target_thread->context);
         free(target_thread);
         return 0;
     }
@@ -647,7 +642,6 @@ int worker_join(worker_t thread, void **value_ptr)
     // //printf("worker_join: Blocking thread %d to wait for TID %u\n", current_tcb_executing->thread_id, thread);
     blocked_queue_add(target_thread->queue, current_tcb_executing);
     current_tcb_executing->stat = BLOCKED;
-
 
     tot_cntx_switches += 1;
     swapcontext(current_tcb_executing->context, scheduler_thread->context);
@@ -749,7 +743,7 @@ int worker_mutex_lock(worker_mutex_t *mutex)
 
         // Swap to scheduler
 
-	tot_cntx_switches += 1;
+        tot_cntx_switches += 1;
         swapcontext(current_tcb_executing->context, scheduler_thread->context);
 
         block_timer_signal(&old_set);
@@ -856,7 +850,7 @@ static void schedule()
     }
     else
     {
-        // //printf("Scheduler: Exiting\n");
+        cleanup_resources();
         exit(0);
     }
 }
@@ -1213,6 +1207,85 @@ void refresh_all_queues()
     }
 }
 #endif // MLFQ
+
+void cleanup_resources()
+{
+    // Clean up the thread list
+    ThreadNode *current = thread_list_head;
+    ThreadNode *temp_node = NULL;
+
+    while (current != NULL)
+    {
+        tcb *thread = current->thread_tcb;
+        temp_node = current;
+        current = current->next;
+
+        // Do not free main or scheduler thread
+        if (thread != stored_main_thread && thread != scheduler_thread)
+        {
+            // Free the thread's context stack if allocated
+            if (thread->context != NULL)
+            {
+                if (thread->context->uc_stack.ss_sp != NULL)
+                {
+                    free(thread->context->uc_stack.ss_sp);
+                }
+                free(thread->context);
+            }
+
+            // Free the thread's blocked queue
+            if (thread->queue != NULL)
+            {
+                free_blocked_queue(thread->queue);
+            }
+
+            // Free the tcb
+            free(thread);
+        }
+
+        // Free the ThreadNode
+        free(temp_node);
+    }
+
+    thread_list_head = NULL;
+
+// Clean up PSJF or MLFQ structures
+#ifndef MLFQ
+    // Clean up the priority queue for PSJF
+    if (heap != NULL)
+    {
+        free_pq(); // This frees the heap->threads array and the heap struct
+    }
+#else
+    // Clean up MLFQ
+    if (mlfq != NULL)
+    {
+        // Free all the priority queues in MLFQ
+        if (mlfq->high_prio_queue != NULL)
+        {
+            free_blocked_queue(mlfq->high_prio_queue);
+        }
+        if (mlfq->medium_prio_queue != NULL)
+        {
+            free_blocked_queue(mlfq->medium_prio_queue);
+        }
+        if (mlfq->default_prio_queue != NULL)
+        {
+            free_blocked_queue(mlfq->default_prio_queue);
+        }
+        if (mlfq->low_prio_queue != NULL)
+        {
+            free_blocked_queue(mlfq->low_prio_queue);
+        }
+        free(mlfq);
+        mlfq = NULL;
+    }
+#endif
+
+    // Reset pointers to NULL (do not free main or scheduler thread)
+    stored_main_thread = NULL;
+    scheduler_thread = NULL;
+}
 
 void print_app_stats(void)
 {

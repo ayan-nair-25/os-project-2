@@ -37,6 +37,12 @@ typedef enum
     TERMINATED
 } thread_status;
 
+typedef struct ThreadNode
+{
+    tcb *thread_tcb;
+    struct ThreadNode *next;
+} ThreadNode;
+
 typedef enum
 {
     MUTEX_UNLOCKED,
@@ -77,25 +83,12 @@ typedef struct
     int capacity;
 } PriorityQueue;
 
-void pq_swap(tcb **a, tcb **b);
-void heapify_up(int index);
-void heapify_down(int index);
-void pq_init();
-void pq_expand();
-void pq_shrink();
-void pq_add(tcb *thread);
-tcb *pq_remove();
-tcb *pq_peek();
-void pq_remove_thread(tcb *thread);
-void free_pq();
-void print_heap();
-
 /* Thread Control Block (TCB) */
 typedef struct TCB
 {
     worker_t thread_id;             // Thread ID
     thread_status stat;             // Thread status
-    ucontext_t * context;             // Thread context
+    ucontext_t *context;            // Thread context
     void *(*start_routine)(void *); // Function to execute
     void *arg;                      // Argument to function
     char *stack;                    // Thread stack
@@ -106,8 +99,8 @@ typedef struct TCB
     double elapsed_time;            // Time elapsed
     double time_remaining;          // Time remaining for MLFQ
     int in_queue;                   // Is thread in queue
-    double start_time;		    // Time at which process arrives in thread
-    double end_time;		    // time at which thread terminates (set in worker_exit)
+    double start_time;              // Time at which process arrives in thread
+    double end_time;                // time at which thread terminates (set in worker_exit)
 } tcb;
 
 /* Multi-Level Feedback Queue (MLFQ) */
@@ -187,6 +180,8 @@ tcb *pq_peek();
 void pq_remove_thread(tcb *thread);
 void free_pq();
 void print_heap();
+
+void cleanup_resources();
 
 // Blocked Queue functions
 Node *create_node(tcb *data, Node *prev);
